@@ -3,14 +3,14 @@ import json
 import os
 import secrets
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
-app = FastAPI(title="VaaniBank Biometric Kiosk API", version="2.1.0")
+app = FastAPI(title="VaaniBank Biometric Kiosk API", version="2.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,20 +43,11 @@ ACCOUNTS_DB: List[dict] = [
 def health_check():
     return {"status": "online", "service": "VaaniBank Biometric Kiosk API"}
 
-async def _run_gemini_audio(audio_bytes: bytes, mime_type: str, prompt: str, json_mode: bool = False) -> str:
-    config = types.GenerateContentConfig(
-        temperature=0.1,
-        response_mime_type="application/json" if json_mode else "text/plain",
-    )
-    response = gemini_client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[
-            prompt,
-            types.Part.from_bytes(data=audio_bytes, mime_type=mime_type or "audio/webm"),
-        ],
-        config=config,
-    )
-    return (response.text or "").strip()
+def _clean_mime_type(raw_mime: str | None) -> str:
+    if not raw_mime:
+        return "audio/webm"
+    base = raw_mime.split(";")[0].strip().lower()
+    return base or "audio/webm"
 
 @app.post("/api/turn")
 async def voice_turn(
@@ -64,29 +55,43 @@ async def voice_turn(
     step_state: str = Form("ASK_NAME"),
     context_info: str = Form("")
 ):
-    """Understands user speech with Gemini and returns both transcript and clean intent."""
     audio_bytes = await audio.read()
     if not audio_bytes:
         return {"transcript": "", "intent": "UNKNOWN", "name": None, "amount": None}
 
+    mime_type = _clean_mime_type(audio.content_type)
     registered_names = ", ".join(acc["name"] for acc in ACCOUNTS_DB)
+
     prompt = (
-        f"You are the voice parser for VaaniBank, an Indian banking kiosk.\n"
-        f"Current step: {step_state}. Extra context: {context_info}.\n"
-        f"Registered account holders: [{registered_names}].\n"
-        f"Listen to the user's audio (Indian English, Kannada, Hindi, or mixed speech). "
-        f"Map simple confirmations like 'yes', 'yeah', 'yep', 'haan', 'ok', 'confirm' to intent 'YES', "
-        f"and 'no', 'nope', 'wrong', 'cancel', 'nahi' to intent 'NO'. "
-        f"For transaction type, map deposit words to 'DEPOSIT' and withdrawal words to 'WITHDRAWAL'. "
-        f"For amounts, extract the numeric rupees value as a positive number (e.g., 5000). "
-        f"For names, match closely to one of the registered names if possible or return the spoken name.\n"
-        f"Return STRICT JSON with keys: "
-        f'{{"transcript": string, "intent": "YES"|"NO"|"DEPOSIT"|"WITHDRAWAL"|"NAME"|"AMOUNT"|"REPEAT"|"UNKNOWN", "name": string|null, "amount": number|null}}'
+        f"You are the voice intent parser for VaaniBank, an Indian banking kiosk.\n"
+        f"Current step: {step_state}. Context: {context_info}.\n"
+        f"Registered names: [{registered_names}].\n"
+        f"Listen to the audio clip (Indian English, Kannada, Hindi, or mixed).\n"
+        f"Map confirmations ('yes', 'yeah', 'yep', 'ok', 'okay', 'haan', 'ha', 'confirm') -> 'YES'.\n"
+        f"Map rejections ('no', 'nope', 'wrong', 'cancel', 'nahi', 'retry') -> 'NO'.\n"
+        f"Map deposit -> 'DEPOSIT', withdrawal/withdraw -> 'WITHDRAWAL'.\n"
+        f"If amount is spoken, set 'amount' to the number (e.g., 5000) and intent 'AMOUNT'.\n"
+        f"If a name is spoken, set 'name' to the closest registered name or spoken name and intent 'NAME'.\n"
+        f"Reply ONLY with valid JSON: "
+        f'{{"transcript": "...", "intent": "YES|NO|DEPOSIT|WITHDRAWAL|NAME|AMOUNT|UNKNOWN", "name": null, "amount": null}}'
     )
 
     try:
-        raw = await _run_gemini_audio(audio_bytes, audio.content_type or "audio/webm", prompt, json_mode=True)
-        parsed = json.loads(raw)
+        response = gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+            ],
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                response_mime_type="application/json",
+            ),
+        )
+        raw_text = (response.text or "").strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.strip("`").replace("json", "", 1).strip()
+        parsed = json.loads(raw_text)
         return {
             "transcript": str(parsed.get("transcript") or "").strip(),
             "intent": str(parsed.get("intent") or "UNKNOWN").upper(),
@@ -95,27 +100,6 @@ async def voice_turn(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini turn error: {str(e)}")
-
-@app.post("/api/transcribe")
-async def transcribe_audio(
-    audio: UploadFile = File(...),
-    context_hint: str = Form("general")
-):
-    audio_bytes = await audio.read()
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="Empty audio file")
-
-    registered_names = ", ".join(acc["name"] for acc in ACCOUNTS_DB)
-    prompt = (
-        f"Transcribe this short banking kiosk audio from an Indian user. "
-        f"Step: {context_hint}. Known names: {registered_names}. "
-        f"Return ONLY the exact words or digits spoken, with no extra text."
-    )
-    try:
-        text = await _run_gemini_audio(audio_bytes, audio.content_type or "audio/webm", prompt, json_mode=False)
-        return {"transcript": text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gemini transcription error: {str(e)}")
 
 @app.get("/api/lookup")
 def lookup_account(name: str):

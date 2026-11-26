@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VaaniBank — Voice-Assisted Biometric Banking Slip</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+  <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
+  <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap)" rel="stylesheet">
   <style>
     body { font-family: 'Inter', system-ui, sans-serif; }
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -51,7 +51,7 @@
         Start Kiosk Session
       </button>
       <p class="text-[11px] text-slate-500 mt-4">
-        Gemini Structured Voice Intent + Watchdog Half-Duplex Control.
+        Gemini AI Intent + Instant Speech Fallback + Watchdog Control.
       </p>
     </div>
   </div>
@@ -131,7 +131,6 @@
             onmousedown="startThumbHold()"
             ontouchstart="startThumbHold(event)"
             onmouseup="releaseThumbHold()"
-            onmouseleave="releaseThumbHold()"
             ontouchend="releaseThumbHold()"
             class="no-select relative overflow-hidden w-48 h-48 rounded-full border-4 border-slate-700 bg-slate-950/90 hover:border-emerald-500/70 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer shadow-inner">
             <div id="scan-beam" class="hidden scanner-beam absolute left-4 right-4 h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399]"></div>
@@ -160,7 +159,7 @@
         <label class="flex items-center justify-between bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/60 px-4 py-3 rounded-2xl cursor-pointer transition">
           <div>
             <span class="text-xs font-bold text-slate-100 block">Lock Thumb Contact (Demo Hold)</span>
-            <span class="text-[11px] text-slate-400">Hands-free testing; switch off to test security abort</span>
+            <span class="text-[11px] text-slate-400">Keep ON for hands-free demo; turn OFF to test abort</span>
           </div>
           <input id="sim-hold-toggle" type="checkbox" onchange="toggleSimulatedHold(this.checked)" class="w-5 h-5 accent-emerald-500 cursor-pointer rounded" />
         </label>
@@ -345,7 +344,7 @@
   </div>
 
   <script>
-    const BACKEND_API_URL = "https://bank-kiosk-api.onrender.com";
+    const BACKEND_API_URL = "[https://bank-kiosk-api.onrender.com](https://bank-kiosk-api.onrender.com)";
 
     const DEFAULT_ACCOUNTS = [
       { name: "Drushya S N", account: "7739104826" },
@@ -365,9 +364,6 @@
     let txData = { matchedUser: null, txType: null, amount: null };
     let currentPromptText = "";
 
-    // ==========================================
-    // GEMINI TURN ENGINE + WATCHDOG TIMERS
-    // ==========================================
     let audioStream = null;
     let mediaRecorder = null;
     let recordStopTimer = null;
@@ -377,6 +373,10 @@
     let isSpeakingNow = false;
     let currentSpeechId = 0;
     window.currentUtterance = null;
+
+    function warmUpBackend() {
+      fetch(`${BACKEND_API_URL}/`, { cache: "no-store" }).catch(() => {});
+    }
 
     async function ensureMicStream() {
       if (audioStream && audioStream.active) return audioStream;
@@ -408,14 +408,57 @@
 
     function getClipDurationMs() {
       if (state === "VERIFY_NAME" || state === "VERIFY_TX" || state === "VERIFY_AMOUNT" || state === "ASK_TX") {
-        return 2400; // Snappy window for Yes/No or Deposit/Withdrawal
+        return 2500;
       }
-      return 3500; // Slightly longer window for full names or amounts
+      return 3500;
+    }
+
+    function runBrowserSpeechFallback() {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec || !isThumbHeld || state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") {
+        if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
+          awaitingUserTurn = true;
+          setTimeout(() => hardStartMic(), 500);
+        }
+        return;
+      }
+      try {
+        const rec = new SpeechRec();
+        rec.lang = "en-IN";
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        updateMicUI("LISTENING");
+        rec.onresult = (ev) => {
+          const text = (ev.results[0]?.[0]?.transcript || "").trim();
+          updateMicUI("OFF");
+          if (text && isThumbHeld) {
+            document.getElementById("heard-transcript").textContent = `Heard (Speech): "${text}"`;
+            applyGeminiIntent({
+              transcript: text,
+              intent: fallbackYes(text) ? "YES" : (fallbackNo(text) ? "NO" : "UNKNOWN"),
+              name: text,
+              amount: extractNumberFromSpeech(text.toLowerCase())
+            });
+          } else if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
+            awaitingUserTurn = true;
+            setTimeout(() => hardStartMic(), 400);
+          }
+        };
+        rec.onerror = () => {
+          updateMicUI("OFF");
+          if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
+            awaitingUserTurn = true;
+            setTimeout(() => hardStartMic(), 600);
+          }
+        };
+        rec.start();
+      } catch (e) {
+        updateMicUI("OFF");
+      }
     }
 
     async function hardStartMic() {
-      if (isSpeakingNow || !awaitingUserTurn || !isThumbHeld) return;
-      if (micHardwareOn) return;
+      if (isSpeakingNow || !awaitingUserTurn || !isThumbHeld || micHardwareOn) return;
 
       const stream = await ensureMicStream();
       if (!stream || !awaitingUserTurn || !isThumbHeld || isSpeakingNow) return;
@@ -435,8 +478,9 @@
           const wasAwaiting = awaitingUserTurn;
           awaitingUserTurn = false;
 
-          const blobType = mediaRecorder?.mimeType || "audio/webm";
-          const audioBlob = new Blob(chunks, { type: blobType });
+          const rawType = mediaRecorder?.mimeType || "audio/webm";
+          const cleanType = rawType.split(";")[0].trim() || "audio/webm";
+          const audioBlob = new Blob(chunks, { type: cleanType });
           mediaRecorder = null;
 
           if (!isThumbHeld || state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") {
@@ -444,14 +488,14 @@
             return;
           }
 
-          if (!wasAwaiting || audioBlob.size < 400) {
+          if (!wasAwaiting || audioBlob.size < 300) {
             awaitingUserTurn = true;
             updateMicUI("OFF");
-            setTimeout(() => hardStartMic(), 200);
+            setTimeout(() => hardStartMic(), 250);
             return;
           }
 
-          await sendAudioToGeminiTurn(audioBlob, blobType);
+          await sendAudioToGeminiTurn(audioBlob, cleanType);
         };
 
         micHardwareOn = true;
@@ -495,7 +539,7 @@
       document.getElementById("heard-transcript").textContent = "Gemini understanding your voice...";
 
       const controller = new AbortController();
-      const netTimeout = setTimeout(() => controller.abort(), 12000);
+      const netTimeout = setTimeout(() => controller.abort(), 20000);
 
       try {
         const formData = new FormData();
@@ -523,7 +567,7 @@
         const intent = (data.intent || "UNKNOWN").toUpperCase();
 
         if (!transcript && intent === "UNKNOWN") {
-          document.getElementById("heard-transcript").textContent = "Didn't catch that — say Yes/No or try again.";
+          document.getElementById("heard-transcript").textContent = "Didn't catch that — speak again or click a button.";
           awaitingUserTurn = true;
           updateMicUI("OFF");
           setTimeout(() => hardStartMic(), 250);
@@ -535,12 +579,9 @@
         await applyGeminiIntent(data);
       } catch (err) {
         clearTimeout(netTimeout);
-        document.getElementById("heard-transcript").textContent = "Voice service busy — say Yes/No again or tap button.";
+        document.getElementById("heard-transcript").textContent = "Using instant speech fallback — say Yes/No or click a button.";
         updateMicUI("OFF");
-        if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
-          awaitingUserTurn = true;
-          setTimeout(() => hardStartMic(), 400);
-        }
+        runBrowserSpeechFallback();
       }
     }
 
@@ -569,12 +610,11 @@
               awaitingUserTurn = true;
               hardStartMic();
             }
-          }, 450);
+          }, 400);
         }
       };
 
-      // Safety watchdog in case browser TTS never fires onend
-      const estimatedMs = Math.max(1800, Math.min(7000, text.length * 65 + 900));
+      const estimatedMs = Math.max(1500, Math.min(6000, text.length * 60 + 700));
       speakWatchdogTimer = setTimeout(finishSpeaking, estimatedMs);
 
       setTimeout(() => {
@@ -596,13 +636,8 @@
       }, 100);
     }
 
-    function speakOnly(text) {
-      runSpeech(text, false);
-    }
-
-    function askAndListen(text) {
-      runSpeech(text, true);
-    }
+    function speakOnly(text) { runSpeech(text, false); }
+    function askAndListen(text) { runSpeech(text, true); }
 
     function repeatCurrentQuestion() {
       if (!currentPromptText) return;
@@ -643,9 +678,6 @@
       }
     }
 
-    // ==========================================
-    // ACCOUNT MATCHING & ACTIVATION
-    // ==========================================
     function findBestAccountMatch(spokenQuery) {
       const cleanQuery = (spokenQuery || "").toLowerCase().replace(/[^a-z\s]/g, "").trim();
       if (!cleanQuery) return null;
@@ -691,6 +723,7 @@
     async function activateKiosk() {
       document.getElementById("activation-overlay").classList.add("hidden");
       renderAccountList();
+      warmUpBackend();
       await ensureMicStream();
       speakOnly("Welcome to Voice-Assisted Biometric Banking Slip. Place and hold your thumb on the scanner to begin.");
     }
@@ -713,11 +746,11 @@
     }
 
     async function checkRDServiceHardware() {
-      showBanner("Checking UIDAI L1 Biometric Scanner on https://127.0.0.1:11100...", "bg-amber-600 text-white");
+      showBanner("Checking UIDAI L1 Biometric Scanner on [https://127.0.0.1:11100](https://127.0.0.1:11100)...", "bg-amber-600 text-white");
       try {
         const controller = new AbortController();
         setTimeout(() => controller.abort(), 2000);
-        const res = await fetch("https://127.0.0.1:11100", { method: "RDSERVICE", signal: controller.signal });
+        const res = await fetch("[https://127.0.0.1:11100](https://127.0.0.1:11100)", { method: "RDSERVICE", signal: controller.signal });
         const xml = await res.text();
         if (xml.includes("READY")) {
           hardwareReady = true;
@@ -733,9 +766,6 @@
       }
     }
 
-    // ==========================================
-    // CONTINUOUS BIOMETRIC EVALUATION & LOCK
-    // ==========================================
     function startThumbHold(e) {
       if (e) e.preventDefault();
       if (kioskMode === "user" && !hardwareReady) {
@@ -746,6 +776,7 @@
 
       isThumbHeld = true;
       biometricPulseCount = 0;
+      warmUpBackend();
       updateBiometricUI(true);
 
       clearInterval(biometricHeartbeatTimer);
@@ -760,7 +791,7 @@
 
         if (kioskMode === "user") {
           try {
-            const res = await fetch("https://127.0.0.1:11100", { method: "RDSERVICE" });
+            const res = await fetch("[https://127.0.0.1:11100](https://127.0.0.1:11100)", { method: "RDSERVICE" });
             const text = await res.text();
             if (!text.includes("READY")) abortSession("Hardware scanner disconnected mid-session.");
           } catch (err) {
@@ -845,9 +876,6 @@
       speakOnly(`${reason} Place your thumb on the scanner to start over.`);
     }
 
-    // ==========================================
-    // GEMINI INTENT ROUTER & MANUAL FALLBACK
-    // ==========================================
     function fallbackYes(t) { return /\b(yes|yeah|yep|confirm|correct|right|ok|okay|sure|proceed|true|haan|ha)\b/i.test(t || ""); }
     function fallbackNo(t) { return /\b(no|nope|wrong|retry|change|cancel|back|incorrect|not|nahi)\b/i.test(t || ""); }
 
@@ -877,11 +905,6 @@
       const transcript = (payload.transcript || "").trim();
       const intent = (payload.intent || "UNKNOWN").toUpperCase();
       const candidateName = (payload.name || transcript).trim();
-
-      if (intent === "REPEAT") {
-        repeatCurrentQuestion();
-        return;
-      }
 
       if (state === "ASK_NAME") {
         let match = findBestAccountMatch(candidateName) || findBestAccountMatch(transcript);
@@ -1007,8 +1030,8 @@
 
       if (kioskMode === "user") {
         try {
-          const pidOpts = `<PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="10000" env="P"/></PidOptions>`;
-          const res = await fetch("https://127.0.0.1:11100/rd/capture", { method: "CAPTURE", body: pidOpts });
+          const pidOpts = `<PidOptions ver="1.0"><Opts env="P" fCount="1" fType="2" format="0" iCount="0" pCount="0" pidVer="2.0" timeout="10000"/></PidOptions>`;
+          const res = await fetch("[https://127.0.0.1:11100/rd/capture](https://127.0.0.1:11100/rd/capture)", { method: "CAPTURE", body: pidOpts });
           const xml = await res.text();
           if (!xml.includes('errCode="0"')) {
             abortSession("Biometric fingerprint match failed on L1 hardware.");
@@ -1028,7 +1051,7 @@
         document.getElementById("bio-auth-status").textContent = "AUTHENTICATED ✔";
         document.getElementById("bio-auth-status").className = "font-mono font-bold text-emerald-400";
         await generateFinalSlip();
-      }, 1800);
+      }, 1500);
     }
 
     async function generateFinalSlip() {
@@ -1093,9 +1116,6 @@
       speakOnly("Ready for next user. Place and hold your thumb on the scanner.");
     }
 
-    // ==========================================
-    // UI STATE & PROGRESS BAR SYNC
-    // ==========================================
     function setKioskState(newState) {
       state = newState;
       const stepMap = {
