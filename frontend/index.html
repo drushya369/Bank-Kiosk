@@ -315,8 +315,7 @@
     let currentPromptText = "";
 
     // ==========================================
-    // ZERO-OVERLAP HALF-DUPLEX ENGINE
-    // Guarantees mic NEVER turns on while speechSynthesis.speaking is true
+    // STRICT HALF-DUPLEX ENGINE (ONSTART-GATED)
     // ==========================================
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
@@ -324,7 +323,8 @@
     let awaitingUserTurn = false;
     let isSpeakingNow = false;
     let speechPollInterval = null;
-    window.currentUtterance = null; // Prevents Chrome from garbage-collecting speech mid-sentence
+    let currentSpeechId = 0;
+    window.currentUtterance = null;
 
     function createFreshRecognizer() {
       if (!SpeechRecognition) return null;
@@ -335,7 +335,6 @@
       rec.lang = "en-IN";
 
       rec.onstart = () => {
-        // Double-check: if speaker somehow started, kill mic immediately
         if (isSpeakingNow || window.speechSynthesis.speaking) {
           hardStopMic();
           return;
@@ -384,7 +383,6 @@
     }
 
     function hardStartMic() {
-      // STRICT GUARD: Never open mic if machine is speaking!
       if (!SpeechRecognition || isSpeakingNow || window.speechSynthesis.speaking || !awaitingUserTurn || !isThumbHeld) {
         return;
       }
@@ -411,6 +409,7 @@
     }
 
     function speakOnly(text) {
+      const myId = ++currentSpeechId;
       currentPromptText = text;
       hardStopMic();
       clearInterval(speechPollInterval);
@@ -420,30 +419,44 @@
       isSpeakingNow = true;
       updateMicUI("SPEAKING");
 
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-IN";
-      utter.rate = 0.95;
-      window.currentUtterance = utter;
+      setTimeout(() => {
+        if (myId !== currentSpeechId) return;
 
-      const finish = () => {
-        clearInterval(speechPollInterval);
-        isSpeakingNow = false;
-        updateMicUI("OFF");
-      };
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "en-IN";
+        utter.rate = 0.95;
+        window.currentUtterance = utter;
 
-      utter.onend = finish;
-      utter.onerror = finish;
-      window.speechSynthesis.speak(utter);
+        let hasStarted = false;
+        const finish = () => {
+          if (myId !== currentSpeechId) return;
+          clearInterval(speechPollInterval);
+          isSpeakingNow = false;
+          updateMicUI("OFF");
+        };
 
-      // Poll actual hardware speaking status so it never unlocks early
-      speechPollInterval = setInterval(() => {
-        if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+        utter.onstart = () => {
+          if (myId !== currentSpeechId) return;
+          hasStarted = true;
+          speechPollInterval = setInterval(() => {
+            if (hasStarted && !window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+              finish();
+            }
+          }, 250);
+        };
+
+        utter.onend = finish;
+        utter.onerror = (e) => {
+          if (e.error === "canceled" || e.error === "interrupted") return;
           finish();
-        }
-      }, 200);
+        };
+
+        window.speechSynthesis.speak(utter);
+      }, 150);
     }
 
     function askAndListen(text) {
+      const myId = ++currentSpeechId;
       currentPromptText = text;
       hardStopMic();
       clearInterval(speechPollInterval);
@@ -453,41 +466,58 @@
       isSpeakingNow = true;
       updateMicUI("SPEAKING");
 
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-IN";
-      utter.rate = 0.95;
-      window.currentUtterance = utter;
-
-      let finished = false;
-      const onSpeechCompletelyDone = () => {
-        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
-        if (finished) return;
-        finished = true;
-        clearInterval(speechPollInterval);
-        isSpeakingNow = false;
-        updateMicUI("OFF");
-
-        // Wait 650ms after speaker goes completely silent before turning ON mic
-        setTimeout(() => {
-          if (!window.speechSynthesis.speaking && isThumbHeld && state !== "IDLE" && state !== "DONE" && state !== "BIO_SCANNING") {
-            awaitingUserTurn = true;
-            hardStartMic();
-          }
-        }, 650);
-      };
-
-      utter.onend = onSpeechCompletelyDone;
-      utter.onerror = onSpeechCompletelyDone;
-      window.speechSynthesis.speak(utter);
-
-      // Backup hardware poll ONLY if speechSynthesis.speaking is false (never interrupts active speech)
+      // 150ms delay after cancel() prevents Chrome from dropping or delaying speech
       setTimeout(() => {
-        speechPollInterval = setInterval(() => {
-          if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-            onSpeechCompletelyDone();
-          }
-        }, 250);
-      }, 800);
+        if (myId !== currentSpeechId) return;
+
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "en-IN";
+        utter.rate = 0.95;
+        window.currentUtterance = utter;
+
+        let hasStarted = false;
+        let finished = false;
+
+        const onSpeechCompletelyDone = () => {
+          if (finished || myId !== currentSpeechId) return;
+          finished = true;
+          clearInterval(speechPollInterval);
+          isSpeakingNow = false;
+          updateMicUI("OFF");
+
+          // Wait 800ms after speaker goes completely silent so room echo dies out
+          setTimeout(() => {
+            if (myId !== currentSpeechId) return;
+            if (!window.speechSynthesis.speaking && isThumbHeld && state !== "IDLE" && state !== "DONE" && state !== "BIO_SCANNING") {
+              awaitingUserTurn = true;
+              hardStartMic();
+            }
+          }, 800);
+        };
+
+        utter.onstart = () => {
+          if (myId !== currentSpeechId) return;
+          hasStarted = true;
+          // Only poll for completion AFTER audio has actually started playing
+          speechPollInterval = setInterval(() => {
+            if (hasStarted && !window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+              onSpeechCompletelyDone();
+            }
+          }, 250);
+        };
+
+        utter.onend = onSpeechCompletelyDone;
+
+        // NEVER turn on mic if speech was canceled or interrupted
+        utter.onerror = (e) => {
+          if (e.error === "canceled" || e.error === "interrupted") return;
+          clearInterval(speechPollInterval);
+          isSpeakingNow = false;
+          updateMicUI("OFF");
+        };
+
+        window.speechSynthesis.speak(utter);
+      }, 150);
     }
 
     function repeatCurrentQuestion() {
@@ -501,6 +531,7 @@
 
     function manualMicTrigger() {
       if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
+        currentSpeechId++;
         clearInterval(speechPollInterval);
         window.speechSynthesis.cancel();
         isSpeakingNow = false;
@@ -673,6 +704,7 @@
     }
 
     function abortSession(reason) {
+      currentSpeechId++;
       hardStopMic();
       clearInterval(speechPollInterval);
       window.speechSynthesis.cancel();
@@ -896,6 +928,7 @@
     }
 
     function resetAfterCompletion() {
+      currentSpeechId++;
       hardStopMic();
       clearInterval(speechPollInterval);
       clearInterval(biometricHeartbeatTimer);
