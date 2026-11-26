@@ -38,7 +38,7 @@
       <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🎙️</div>
       <h1 class="text-2xl font-bold mb-2">VaaniBank Biometric Kiosk</h1>
       <p class="text-slate-400 text-sm mb-6">
-        Half-duplex turn-locked voice assistant with continuous biometric thumb evaluation.
+        Strict half-duplex voice assistant with continuous biometric thumb evaluation.
       </p>
       <button onclick="activateKiosk()" class="w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-lg transition shadow-lg">
         Activate Kiosk
@@ -52,7 +52,7 @@
       <span class="text-2xl">🏦</span>
       <div>
         <h1 class="font-bold text-lg leading-tight">VaaniBank Biometric Kiosk</h1>
-        <p class="text-xs text-slate-400">Ask → Listen → Verify → Proceed Terminal</p>
+        <p class="text-xs text-slate-400">Speak Completely → Mic ON → Listen → Verify</p>
       </div>
     </div>
 
@@ -132,7 +132,7 @@
             <span id="mic-status-text" class="text-xs font-medium text-slate-400">Mic OFF</span>
           </div>
           <button onclick="manualMicTrigger()" class="text-xs text-emerald-400 hover:underline font-semibold">
-            🎤 Force Mic ON
+            🎤 Speak Now
           </button>
         </div>
       </div>
@@ -303,7 +303,6 @@
     ];
     let accountsDB = JSON.parse(localStorage.getItem("kiosk_accounts_db")) || [...DEFAULT_ACCOUNTS];
 
-    // Strict State Machine
     let state = "IDLE";
     let kioskMode = "prototype";
     let hardwareReady = false;
@@ -316,40 +315,43 @@
     let currentPromptText = "";
 
     // ==========================================
-    // STRICT HALF-DUPLEX ENGINE
-    // Rule: Mic is PHYSICALLY STOPPED while speaking or processing.
-    //       Mic is PHYSICALLY STARTED only after speech finishes.
+    // ZERO-OVERLAP HALF-DUPLEX ENGINE
+    // Guarantees mic NEVER turns on while speechSynthesis.speaking is true
     // ==========================================
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
     let micHardwareOn = false;
     let awaitingUserTurn = false;
     let isSpeakingNow = false;
-    let speechTimer = null;
+    let speechPollInterval = null;
+    window.currentUtterance = null; // Prevents Chrome from garbage-collecting speech mid-sentence
 
     function createFreshRecognizer() {
       if (!SpeechRecognition) return null;
       const rec = new SpeechRecognition();
-      rec.continuous = false;     // Stops automatically after ONE spoken phrase
-      rec.interimResults = false;  // Waits until user finishes speaking before firing
+      rec.continuous = false;
+      rec.interimResults = false;
       rec.maxAlternatives = 1;
       rec.lang = "en-IN";
 
       rec.onstart = () => {
+        // Double-check: if speaker somehow started, kill mic immediately
+        if (isSpeakingNow || window.speechSynthesis.speaking) {
+          hardStopMic();
+          return;
+        }
         micHardwareOn = true;
         updateMicUI("LISTENING");
       };
 
       rec.onresult = (event) => {
         const spoken = event.results[0][0].transcript.trim();
-        // Immediately shut down mic hardware so kiosk never hears itself
         hardStopMic();
         if (!spoken) return;
 
         document.getElementById("heard-transcript").textContent = `Heard: "${spoken}"`;
         updateMicUI("PROCESSING");
 
-        // Slight pause so user sees what was heard before kiosk speaks verification
         setTimeout(() => {
           processStepInput(spoken);
         }, 350);
@@ -361,8 +363,7 @@
           awaitingUserTurn = false;
           updateMicUI("OFF");
           showBanner("Microphone blocked. Allow Microphone in address bar settings.", "bg-rose-600 text-white");
-        } else if (event.error === "no-speech" && awaitingUserTurn && !isSpeakingNow && isThumbHeld) {
-          // User hasn't spoken yet — keep waiting patiently by restarting mic
+        } else if (event.error === "no-speech" && awaitingUserTurn && !isSpeakingNow && !window.speechSynthesis.speaking && isThumbHeld) {
           updateMicUI("OFF");
           setTimeout(() => hardStartMic(), 300);
         } else {
@@ -372,11 +373,10 @@
 
       rec.onend = () => {
         micHardwareOn = false;
-        // ONLY re-open mic if we are STILL waiting for the user's answer and kiosk is silent
-        if (awaitingUserTurn && !isSpeakingNow && isThumbHeld) {
+        if (awaitingUserTurn && !isSpeakingNow && !window.speechSynthesis.speaking && isThumbHeld) {
           setTimeout(() => hardStartMic(), 300);
         } else {
-          updateMicUI(isSpeakingNow ? "SPEAKING" : "OFF");
+          updateMicUI((isSpeakingNow || window.speechSynthesis.speaking) ? "SPEAKING" : "OFF");
         }
       };
 
@@ -384,7 +384,10 @@
     }
 
     function hardStartMic() {
-      if (!SpeechRecognition || isSpeakingNow || !awaitingUserTurn || !isThumbHeld) return;
+      // STRICT GUARD: Never open mic if machine is speaking!
+      if (!SpeechRecognition || isSpeakingNow || window.speechSynthesis.speaking || !awaitingUserTurn || !isThumbHeld) {
+        return;
+      }
       if (micHardwareOn) return;
       try {
         recognition = createFreshRecognizer();
@@ -395,19 +398,23 @@
     function hardStopMic() {
       awaitingUserTurn = false;
       if (recognition) {
-        try { recognition.onend = null; recognition.onerror = null; recognition.onresult = null; recognition.abort(); } catch (e) {}
+        try {
+          recognition.onend = null;
+          recognition.onerror = null;
+          recognition.onresult = null;
+          recognition.abort();
+        } catch (e) {}
         recognition = null;
       }
       micHardwareOn = false;
-      updateMicUI(isSpeakingNow ? "SPEAKING" : "OFF");
+      updateMicUI((isSpeakingNow || window.speechSynthesis.speaking) ? "SPEAKING" : "OFF");
     }
 
-    // 1. Speak WITHOUT turning mic on afterward (used for greetings, alerts, final slip)
     function speakOnly(text) {
       currentPromptText = text;
       hardStopMic();
+      clearInterval(speechPollInterval);
       window.speechSynthesis.cancel();
-      clearTimeout(speechTimer);
 
       document.getElementById("kiosk-prompt-text").textContent = text;
       isSpeakingNow = true;
@@ -416,25 +423,31 @@
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "en-IN";
       utter.rate = 0.95;
+      window.currentUtterance = utter;
 
       const finish = () => {
-        clearTimeout(speechTimer);
+        clearInterval(speechPollInterval);
         isSpeakingNow = false;
         updateMicUI("OFF");
       };
 
       utter.onend = finish;
       utter.onerror = finish;
-      speechTimer = setTimeout(finish, Math.max(3000, text.length * 85));
       window.speechSynthesis.speak(utter);
+
+      // Poll actual hardware speaking status so it never unlocks early
+      speechPollInterval = setInterval(() => {
+        if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+          finish();
+        }
+      }, 200);
     }
 
-    // 2. Speak question FIRST (Mic OFF), wait for complete silence, THEN turn Mic ON & wait for user
     function askAndListen(text) {
       currentPromptText = text;
       hardStopMic();
+      clearInterval(speechPollInterval);
       window.speechSynthesis.cancel();
-      clearTimeout(speechTimer);
 
       document.getElementById("kiosk-prompt-text").textContent = text;
       isSpeakingNow = true;
@@ -443,28 +456,38 @@
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "en-IN";
       utter.rate = 0.95;
+      window.currentUtterance = utter;
 
       let finished = false;
-      const onSpeechFinished = () => {
+      const onSpeechCompletelyDone = () => {
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
         if (finished) return;
         finished = true;
-        clearTimeout(speechTimer);
+        clearInterval(speechPollInterval);
         isSpeakingNow = false;
         updateMicUI("OFF");
 
-        // Wait 600ms after speaker stops so zero echo enters the mic
+        // Wait 650ms after speaker goes completely silent before turning ON mic
         setTimeout(() => {
-          if (isThumbHeld && state !== "IDLE" && state !== "DONE" && state !== "BIO_SCANNING") {
+          if (!window.speechSynthesis.speaking && isThumbHeld && state !== "IDLE" && state !== "DONE" && state !== "BIO_SCANNING") {
             awaitingUserTurn = true;
             hardStartMic();
           }
-        }, 600);
+        }, 650);
       };
 
-      utter.onend = onSpeechFinished;
-      utter.onerror = onSpeechFinished;
-      speechTimer = setTimeout(onSpeechFinished, Math.max(3500, text.length * 85));
+      utter.onend = onSpeechCompletelyDone;
+      utter.onerror = onSpeechCompletelyDone;
       window.speechSynthesis.speak(utter);
+
+      // Backup hardware poll ONLY if speechSynthesis.speaking is false (never interrupts active speech)
+      setTimeout(() => {
+        speechPollInterval = setInterval(() => {
+          if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+            onSpeechCompletelyDone();
+          }
+        }, 250);
+      }, 800);
     }
 
     function repeatCurrentQuestion() {
@@ -478,6 +501,7 @@
 
     function manualMicTrigger() {
       if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
+        clearInterval(speechPollInterval);
         window.speechSynthesis.cancel();
         isSpeakingNow = false;
         awaitingUserTurn = true;
@@ -490,15 +514,15 @@
       const label = document.getElementById("mic-status-text");
       if (status === "LISTENING") {
         dot.className = "w-3 h-3 rounded-full bg-emerald-400 listening-pulse";
-        label.textContent = "Mic ON — Waiting for You to Speak...";
+        label.textContent = "Mic ON — Speak Your Answer Now";
         label.className = "text-xs font-bold text-emerald-400";
       } else if (status === "SPEAKING") {
         dot.className = "w-3 h-3 rounded-full bg-amber-400";
-        label.textContent = "Mic OFF (Kiosk Speaking...)";
+        label.textContent = "Mic OFF (Machine Speaking...)";
         label.className = "text-xs font-semibold text-amber-400";
       } else if (status === "PROCESSING") {
         dot.className = "w-3 h-3 rounded-full bg-sky-400";
-        label.textContent = "Mic OFF (Verifying Answer...)";
+        label.textContent = "Mic OFF (Checking Answer...)";
         label.className = "text-xs font-semibold text-sky-400";
       } else {
         dot.className = "w-3 h-3 rounded-full bg-slate-600";
@@ -650,6 +674,7 @@
 
     function abortSession(reason) {
       hardStopMic();
+      clearInterval(speechPollInterval);
       window.speechSynthesis.cancel();
       clearInterval(biometricHeartbeatTimer);
       txData = { matchedUser: null, txType: null, amount: null };
@@ -685,7 +710,6 @@
       const clean = spokenText.trim();
       const lower = clean.toLowerCase();
 
-      // 1. STATE: ASK_NAME -> Lookup & Verify
       if (state === "ASK_NAME") {
         const match = accountsDB.find(acc =>
           acc.name.toLowerCase() === lower ||
@@ -706,7 +730,6 @@
         return;
       }
 
-      // 2. STATE: VERIFY_NAME -> Proceed to ASK_TX
       if (state === "VERIFY_NAME") {
         if (isYes(lower)) {
           confirmMatchedName(true);
@@ -718,7 +741,6 @@
         return;
       }
 
-      // 3. STATE: ASK_TX -> Verify Deposit or Withdrawal
       if (state === "ASK_TX") {
         if (lower.includes("deposit")) {
           selectTransactionType("DEPOSIT");
@@ -730,7 +752,6 @@
         return;
       }
 
-      // 4. STATE: VERIFY_TX -> Proceed to ASK_AMOUNT
       if (state === "VERIFY_TX") {
         if (isYes(lower)) {
           confirmTransactionType(true);
@@ -742,7 +763,6 @@
         return;
       }
 
-      // 5. STATE: ASK_AMOUNT -> Verify Amount
       if (state === "ASK_AMOUNT") {
         const num = extractNumberFromSpeech(lower);
         if (num && num > 0) {
@@ -753,7 +773,6 @@
         return;
       }
 
-      // 6. STATE: VERIFY_AMOUNT -> Run Biometric Auth & Print
       if (state === "VERIFY_AMOUNT") {
         if (isYes(lower)) {
           runMidSessionBiometricScan();
@@ -817,9 +836,6 @@
       askAndListen("Okay. Please state the amount in rupees again.");
     }
 
-    // ==========================================
-    // MID-SESSION BIOMETRIC AUTHENTICATION SCAN
-    // ==========================================
     async function runMidSessionBiometricScan() {
       if (!isThumbHeld) {
         abortSession("Thumb removed during biometric authentication!");
@@ -881,6 +897,7 @@
 
     function resetAfterCompletion() {
       hardStopMic();
+      clearInterval(speechPollInterval);
       clearInterval(biometricHeartbeatTimer);
       txData = { matchedUser: null, txType: null, amount: null };
       document.getElementById("sim-hold-toggle").checked = false;
