@@ -1,4 +1,407 @@
-<script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VaaniBank — Voice-Assisted Biometric Banking Slip</title>
+  <style>
+    :root {
+      --bg: #050811;
+      --panel: #0f172a;
+      --panel-2: #080d1a;
+      --border: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #10b981;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 22px;
+    }
+    .subpanel {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .btn {
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #f8fafc;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: #334155; }
+    .btn-accent {
+      border: none;
+      background: var(--accent);
+      color: #052e16;
+      font-weight: 700;
+    }
+    .btn-accent:hover { background: #34d399; }
+    @keyframes pulseRing {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .mic-live {
+      background: #10b981 !important;
+      animation: pulseRing 1.4s infinite;
+    }
+    .thumb-circle {
+      width: 164px;
+      height: 164px;
+      border-radius: 9999px;
+      border: 3px solid #334155;
+      background: #070c18;
+      color: #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+    }
+    .thumb-circle.locked {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.14);
+      color: #6ee7b7;
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.18);
+    }
+    .thumb-icon {
+      width: 50px;
+      height: 50px;
+      max-width: 50px;
+      max-height: 50px;
+      flex-shrink: 0;
+    }
+    .grid-main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 900px) {
+      .grid-main { grid-template-columns: 5fr 7fr; }
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      max-width: 1120px;
+      margin: 18px auto 0;
+      padding: 0 20px;
+    }
+    .step-pill {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .step-pill.active {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.12);
+      color: #a7f3d0;
+    }
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 9999px;
+      background: #1e293b;
+      color: #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-pill.active .step-num {
+      background: #10b981;
+      color: #052e16;
+    }
+    input[type="text"], input[type="number"] {
+      background: #060a14;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      width: 100%;
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-slip, #printable-slip * { visibility: visible; }
+      #printable-slip {
+        position: fixed; left: 0; top: 0; width: 100%;
+        background: #ffffff; color: #0f172a; padding: 24px;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Start Overlay -->
+  <div id="activation-overlay" class="no-print" style="position:fixed;inset:0;background:rgba(5,8,17,0.96);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div class="panel" style="max-width:430px;width:100%;text-align:center;">
+      <div style="font-size:38px;margin-bottom:10px;">🏦</div>
+      <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
+      <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
+        Hands-free voice banking kiosk with phonetic name matching, accurate rupee recognition, continuous thumb lock, and printable SHA-256 slips.
+      </p>
+      <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
+        Start Kiosk Session
+      </button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="no-print" style="background:#0b1120;border-bottom:1px solid #1e293b;padding:14px 20px;">
+    <div style="max-width:1120px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+      <div>
+        <div style="font-weight:800;font-size:17px;">Voice-Assisted Biometric Banking Slip</div>
+        <div style="font-size:12px;color:#94a3b8;">VaaniBank Hands-Free Accessible Terminal</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+        <button onclick="toggleAccountModal(true)" class="btn">+ Accounts (<span id="account-count">3</span>)</button>
+        <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="btn btn-accent">Prototype Mode</button>
+        <button id="btn-user-mode" onclick="setKioskMode('user')" class="btn">User Mode (L1)</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Alert Banner -->
+  <div id="alert-banner" class="no-print" style="display:none;padding:10px 20px;text-align:center;font-size:12px;font-weight:700;background:#991b1b;color:#fecaca;"></div>
+
+  <!-- 4-Step Progress -->
+  <div class="steps-grid no-print">
+    <div id="prog-1" class="step-pill active"><span class="step-num">1</span><span>Thumb Lock</span></div>
+    <div id="prog-2" class="step-pill"><span class="step-num">2</span><span>Account</span></div>
+    <div id="prog-3" class="step-pill"><span class="step-num">3</span><span>Type</span></div>
+    <div id="prog-4" class="step-pill"><span class="step-num">4</span><span>Amount &amp; Slip</span></div>
+  </div>
+
+  <!-- Main Columns -->
+  <main class="grid-main">
+
+    <!-- Left: Biometrics & Automatic Mic Status -->
+    <section class="panel no-print" style="display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <h2 style="margin:0;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#cbd5e1;">Biometric Thumb Lock</h2>
+          <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
+        </div>
+        <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
+          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and turns ON automatically after each prompt.
+        </p>
+
+        <div style="display:flex;justify-content:center;margin:14px 0;">
+          <button
+            id="thumb-pad"
+            type="button"
+            onmousedown="startThumbHold()"
+            ontouchstart="startThumbHold(event)"
+            onmouseup="releaseThumbHold()"
+            onmouseleave="releaseThumbHold()"
+            ontouchend="releaseThumbHold()"
+            class="thumb-circle">
+            <svg class="thumb-icon" id="thumb-svg" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
+            </svg>
+            <span id="thumb-label" style="font-size:11px;font-weight:700;text-align:center;padding:0 10px;">Press &amp; Hold Thumb</span>
+          </button>
+        </div>
+
+        <div class="subpanel" style="font-size:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span style="color:#94a3b8;">Continuous Heartbeat</span>
+            <span id="bio-heartbeat-status" class="mono" style="color:#64748b;">Idle</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;border-top:1px solid #1e293b;padding-top:8px;">
+            <span style="color:#94a3b8;">Mid-Session Auth Scan</span>
+            <span id="bio-auth-status" class="mono" style="color:#64748b;">Pending</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #1e293b;padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+        <label class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;">
+          <div>
+            <div style="font-size:12px;font-weight:700;">Lock Thumb Contact (Demo Hold)</div>
+            <div style="font-size:11px;color:#94a3b8;">Hands-free testing without holding mouse button</div>
+          </div>
+          <input id="sim-hold-toggle" type="checkbox" onchange="toggleSimulatedHold(this.checked)" style="width:18px;height:18px;cursor:pointer;" />
+        </label>
+
+        <div class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span id="mic-dot" style="width:10px;height:10px;border-radius:9999px;background:#475569;display:inline-block;"></span>
+            <span id="mic-status-text" style="font-size:12px;font-weight:600;color:#94a3b8;">Auto-Mic Standby</span>
+          </div>
+          <button type="button" onclick="retryListeningNow()" class="btn" style="padding:5px 10px;font-size:11px;">↻ Re-listen</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: Hands-Free Voice Prompt & Slip -->
+    <section class="panel" style="display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
+      <div>
+        <div class="subpanel no-print" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+            <span id="step-counter" style="font-size:11px;font-weight:700;text-transform:uppercase;color:#34d399;">Step 1 / 4 — Waiting for Thumb</span>
+            <button type="button" onclick="repeatCurrentQuestion()" class="btn" style="padding:5px 10px;font-size:12px;">🔊 Repeat</button>
+          </div>
+          <div id="kiosk-prompt-text" style="font-size:19px;font-weight:700;line-height:1.4;">
+            Click "Start Kiosk Session" to begin.
+          </div>
+          <div id="heard-transcript" style="font-size:12px;color:#6ee7b7;margin-top:8px;min-height:18px;"></div>
+        </div>
+
+        <div id="step-workspace" class="no-print">
+          <div id="ui-step-1" class="subpanel" style="text-align:center;padding:28px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Place and hold your thumb to start</div>
+            <div style="font-size:12px;color:#94a3b8;">Everything after thumb lock runs automatically by voice.</div>
+          </div>
+
+          <div id="ui-step-2" style="display:none;">
+            <div id="confirm-name-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#10b981;">
+              <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Closest Account Matched — Say "Yes" or "No"</div>
+              <div id="matched-account-display" style="font-weight:700;font-size:15px;margin-bottom:10px;"></div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="confirmMatchedName(true)" class="btn btn-accent">Yes</button>
+                <button type="button" onclick="confirmMatchedName(false)" class="btn">No</button>
+              </div>
+            </div>
+            <details style="font-size:12px;color:#94a3b8;">
+              <summary style="cursor:pointer;">Optional Accessibility Keyboard Input</summary>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <input id="manual-name-input" type="text" placeholder="Type name only if mic is unavailable" />
+                <button type="button" onclick="handleManualInput(document.getElementById('manual-name-input').value)" class="btn btn-accent">Go</button>
+              </div>
+            </details>
+          </div>
+
+          <div id="ui-step-3" style="display:none;">
+            <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">Say "Deposit" or "Withdrawal"</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <button type="button" onclick="selectTransactionType('DEPOSIT')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#10b981;color:#6ee7b7;">⬇️ DEPOSIT</button>
+              <button type="button" onclick="selectTransactionType('WITHDRAWAL')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#f59e0b;color:#fcd34d;">⬆️ WITHDRAWAL</button>
+            </div>
+            <div id="confirm-tx-box" class="subpanel" style="display:none;margin-top:12px;border-color:#10b981;">
+              <div id="tx-verify-display" style="font-weight:700;margin-bottom:10px;"></div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="confirmTransactionType(true)" class="btn btn-accent">Yes</button>
+                <button type="button" onclick="confirmTransactionType(false)" class="btn">No</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="ui-step-4" style="display:none;">
+            <div id="amount-preview-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#334155;">
+              <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Recognized Amount</div>
+              <div id="amount-preview-value" class="mono" style="font-weight:800;font-size:20px;color:#34d399;"></div>
+            </div>
+            <div id="final-confirm-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#10b981;">
+              <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Final Confirmation — Say "Yes" or "No"</div>
+              <div id="final-summary-text" style="font-weight:700;font-size:15px;margin-bottom:10px;"></div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="runMidSessionBiometricScan()" class="btn btn-accent">Yes, Authenticate &amp; Print</button>
+                <button type="button" onclick="retryAmount()" class="btn">No</button>
+              </div>
+            </div>
+            <details style="font-size:12px;color:#94a3b8;">
+              <summary style="cursor:pointer;">Optional Accessibility Number Input</summary>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <input id="manual-amount-input" type="number" placeholder="Type rupees only if mic is unavailable" class="mono" />
+                <button type="button" onclick="handleManualInput(document.getElementById('manual-amount-input').value)" class="btn btn-accent">Go</button>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- Printable Slip -->
+        <div id="printable-slip" style="display:none;background:#ffffff;color:#0f172a;border-radius:16px;padding:22px;margin-top:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px dashed #cbd5e1;padding-bottom:12px;margin-bottom:16px;">
+            <div>
+              <div style="font-weight:800;font-size:18px;">VAANIBANK INDIA LTD.</div>
+              <div style="font-size:12px;color:#64748b;">Voice-Assisted Biometric Banking Slip</div>
+            </div>
+            <div style="text-align:right;font-size:12px;">
+              <div id="slip-tx-type" style="font-weight:800;background:#0f172a;color:#fff;padding:4px 8px;border-radius:6px;display:inline-block;">DEPOSIT SLIP</div>
+              <div id="slip-timestamp" style="color:#64748b;margin-top:4px;"></div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:14px;margin-bottom:16px;">
+            <div style="color:#64748b;">Account Holder</div>
+            <div id="slip-name" style="font-weight:700;text-align:right;"></div>
+            <div style="color:#64748b;">Account Number</div>
+            <div id="slip-account" class="mono" style="font-weight:700;text-align:right;"></div>
+            <div style="color:#64748b;">Amount</div>
+            <div id="slip-amount" style="font-weight:800;font-size:18px;color:#047857;text-align:right;"></div>
+            <div style="color:#64748b;">Reference ID</div>
+            <div id="slip-ref" class="mono" style="font-size:12px;text-align:right;"></div>
+          </div>
+
+          <div class="mono" style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;font-size:11px;">
+            <div style="font-weight:700;color:#047857;margin-bottom:4px;">✔ CRYPTOGRAPHIC BIOMETRIC e-SIGN VERIFIED</div>
+            <div id="slip-hash" style="word-break:break-all;color:#334155;"></div>
+          </div>
+
+          <div class="no-print" style="display:flex;gap:10px;margin-top:16px;">
+            <button type="button" onclick="triggerSlipPrint()" class="btn" style="flex:1;background:#0f172a;color:#fff;">🖨️ Print Slip</button>
+            <button type="button" onclick="resetAfterCompletion()" class="btn btn-accent">Done / New User</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Accounts Modal -->
+  <div id="account-modal" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(5,8,17,0.85);z-index:40;align-items:center;justify-content:center;padding:16px;">
+    <div class="panel" style="max-width:420px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="margin:0;font-size:16px;font-weight:700;">Register Demo Bank Account</h3>
+        <button type="button" onclick="toggleAccountModal(false)" class="btn" style="padding:4px 10px;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+        <input id="new-acc-name" type="text" placeholder="Customer Full Name (e.g., Ananya Sharma)" />
+        <div style="display:flex;gap:8px;">
+          <input id="new-acc-num" type="text" placeholder="10-digit account number" class="mono" />
+          <button type="button" onclick="generateRandomAccountNum()" class="btn">Auto</button>
+        </div>
+        <button type="button" onclick="addNewAccount()" class="btn btn-accent">Save Account</button>
+      </div>
+      <ul id="registered-accounts-list" style="list-style:none;padding:0;margin:0;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-size:12px;"></ul>
+    </div>
+  </div>
+
+  <script>
     const BACKEND_API_URL = "https://bank-kiosk-api.onrender.com";
     const DEFAULT_ACCOUNTS = [
       { name: "Drushya S N", account: "7739104826" },
@@ -18,16 +421,18 @@
     let currentPromptText = "";
     let lastSpokeAt = 0;
 
+    // ==========================================
+    // BUG-FIXED HANDS-FREE SPEECH ENGINE
+    // ==========================================
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     let activeRec = null;
     let speakWatchdog = null;
-    let restartTimer = null;
-    let speechEndTimer = null;
     let micOpenTimer = null;
     let isSpeaking = false;
     let isListening = false;
     let shouldListen = false;
     let turnId = 0;
+    let committedTurnId = 0;
 
     function warmUpBackend() {
       fetch(`${BACKEND_API_URL}/`, { cache: "no-store" }).catch(() => {});
@@ -57,15 +462,12 @@
 
     function stopListening() {
       shouldListen = false;
-      clearTimeout(restartTimer);
-      clearTimeout(speechEndTimer);
       clearTimeout(micOpenTimer);
       if (activeRec) {
         try {
           activeRec.onresult = null;
           activeRec.onerror = null;
           activeRec.onnomatch = null;
-          activeRec.onspeechend = null;
           activeRec.onend = null;
           activeRec.abort();
         } catch (e) {}
@@ -75,11 +477,19 @@
       updateMicUI(isSpeaking ? "SPEAKING" : "OFF");
     }
 
-    function isEchoText(text) {
-      if (Date.now() - lastSpokeAt > 500) return false;
+    function isEchoFromCurrentPrompt(text) {
+      if (Date.now() - lastSpokenAt > 750) return false;
       const cand = (text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
       const prompt = (currentPromptText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-      return Boolean(cand && prompt && cand.length >= 5 && prompt.includes(cand));
+      if (!cand || !prompt) return false;
+      if (cand.length >= 5 && prompt.includes(cand)) return true;
+      const cWords = cand.split(" ").filter((w) => w.length > 2);
+      const pWords = new Set(prompt.split(" "));
+      if (cWords.length >= 2) {
+        const matches = cWords.filter((w) => pWords.has(w)).length;
+        if (matches / cWords.length >= 0.7) return true;
+      }
+      return false;
     }
 
     function startListening() {
@@ -101,56 +511,47 @@
         isListening = true;
         updateMicUI("LISTENING");
 
-        let handledResult = false;
-        let turnTranscript = "";
+        let finalText = "";
+        let interimText = "";
 
-        const commitSpeech = (text) => {
-          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
-          const clean = (text || "").trim();
+        const finalizeOnce = (spoken) => {
+          if (myTurn !== turnId || committedTurnId === myTurn || !isThumbHeld) return;
+          const clean = (spoken || "").trim();
           if (!clean) return;
-          if (isEchoText(clean)) {
-            handledResult = true;
+          if (isEchoFromCurrentPrompt(clean)) {
             stopListening();
             shouldListen = true;
-            restartTimer = setTimeout(() => startListening(), 250);
+            micOpenTimer = setTimeout(() => startListening(), 350);
             return;
           }
-          handledResult = true;
+          committedTurnId = myTurn;
           stopListening();
           document.getElementById("heard-transcript").textContent = `Heard: "${clean}"`;
           handleSpokenUtterance(clean);
         };
 
         rec.onresult = (event) => {
-          if (myTurn !== turnId || !isThumbHeld || handledResult) return;
-          let interim = "";
-          let finalTranscript = "";
+          if (myTurn !== turnId || committedTurnId === myTurn || !isThumbHeld) return;
+          let finals = "";
+          let interims = "";
           for (let i = event.resultIndex; i < event.results.length; i++) {
-            const alt0 = (event.results[i][0]?.transcript || "").trim();
-            if (event.results[i].isFinal) finalTranscript += alt0 + " ";
-            else interim = alt0;
+            const part = (event.results[i][0]?.transcript || "").trim();
+            if (!part) continue;
+            if (event.results[i].isFinal) finals += part + " ";
+            else interims += part + " ";
           }
-          turnTranscript = (finalTranscript || interim).trim();
-          if (turnTranscript && !isEchoText(turnTranscript)) {
-            document.getElementById("heard-transcript").textContent = `Listening: "${turnTranscript}"`;
+          if (interims.trim() && !isEchoFromCurrentPrompt(interims.trim())) {
+            interimText = interims.trim();
+            document.getElementById("heard-transcript").textContent = `Hearing: "${interimText}"...`;
           }
-          if (finalTranscript.trim()) {
-            commitSpeech(finalTranscript.trim());
+          if (finals.trim()) {
+            finalText = finals.trim();
+            finalizeOnce(finalText);
           }
-        };
-
-        rec.onspeechend = () => {
-          clearTimeout(speechEndTimer);
-          speechEndTimer = setTimeout(() => {
-            if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
-              commitSpeech(turnTranscript);
-            }
-          }, 350);
         };
 
         rec.onnomatch = () => {
-          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
-          handledResult = true;
+          if (myTurn !== turnId || committedTurnId === myTurn || !isThumbHeld) return;
           stopListening();
           speak("I didn't catch that. Please say it again clearly.", true);
         };
@@ -158,29 +559,28 @@
         rec.onerror = (ev) => {
           isListening = false;
           activeRec = null;
+          if (myTurn !== turnId || committedTurnId === myTurn || !isThumbHeld) return;
           if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
             shouldListen = false;
             updateMicUI("OFF");
             showBanner("Microphone permission blocked. Allow Microphone in Chrome site settings.");
             return;
           }
-          if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
-            speak(`Speech error (${ev.error}). Please speak again.`, true);
-          }
+          speak("I couldn't hear you clearly. Please speak again.", true);
         };
 
         rec.onend = () => {
           isListening = false;
           activeRec = null;
-          if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
-            clearTimeout(speechEndTimer);
-            commitSpeech(turnTranscript);
+          if (myTurn !== turnId || committedTurnId === myTurn || !isThumbHeld || isSpeaking) {
+            if (!isSpeaking) updateMicUI("OFF");
             return;
           }
-          if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
+          const best = (finalText || interimText || "").trim();
+          if (best) {
+            finalizeOnce(best);
+          } else if (shouldListen) {
             speak("I didn't hear anything. Please speak again.", true);
-          } else if (!isSpeaking) {
-            updateMicUI("OFF");
           }
         };
 
@@ -189,7 +589,7 @@
         isListening = false;
         activeRec = null;
         if (shouldListen && isThumbHeld && myTurn === turnId) {
-          restartTimer = setTimeout(() => startListening(), 400);
+          micOpenTimer = setTimeout(() => startListening(), 400);
         }
       }
     }
@@ -230,11 +630,11 @@
               shouldListen = true;
               startListening();
             }
-          }, 450);
+          }, 700);
         }
       };
 
-      const maxWait = Math.max(1500, Math.min(5500, text.length * 58 + 700));
+      const maxWait = Math.max(1600, Math.min(6000, text.length * 60 + 800));
       speakWatchdog = setTimeout(onDone, maxWait);
 
       setTimeout(() => {
@@ -242,7 +642,7 @@
         try {
           const utter = new SpeechSynthesisUtterance(text);
           utter.lang = "en-IN";
-          utter.rate = 1.02;
+          utter.rate = 1.0;
           window._utter = utter;
           utter.onend = onDone;
           utter.onerror = (ev) => {
@@ -253,7 +653,7 @@
         } catch (e) {
           onDone();
         }
-      }, 80);
+      }, 90);
     }
 
     function repeatCurrentQuestion() {
@@ -262,6 +662,9 @@
       speak(currentPromptText, shouldListenAfter);
     }
 
+    // ==========================================
+    // NAME, EXACT AMOUNT & INTENT HANDLING
+    // ==========================================
     function phoneticNormalize(str) {
       return (str || "")
         .toLowerCase()
@@ -343,30 +746,27 @@
 
       if (!normalized) return null;
 
-      const scaledMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|thousand|tausand|savi|saavira|hajar|lakh|lac|lakhs|hundred)?\b/);
-      if (scaledMatch) {
-        const base = parseFloat(scaledMatch[1]);
-        const unit = scaledMatch[2] || "";
-        if (["k", "thousand", "tausand", "savi", "saavira", "hajar"].includes(unit)) return Math.round(base * 1000);
-        if (["lakh", "lac", "lakhs"].includes(unit)) return Math.round(base * 100000);
-        if (unit === "hundred") return Math.round(base * 100);
-        if (!isNaN(base) && base > 0) return base;
-      }
-
       const ones = {
-        zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
-        six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
-        eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
-        sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19
+        zero: 0, one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4,
+        five: 5, faiv: 5, six: 6, seven: 7, eight: 8, ate: 8, nine: 9,
+        ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+        fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19
       };
       const tens = {
         twenty: 20, thirty: 30, forty: 40, fifty: 50,
         sixty: 60, seventy: 70, eighty: 80, ninety: 90
       };
 
-      const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+      const tokens = normalized.split(/[^a-z0-9.]+/).filter(Boolean);
       const hasScale = tokens.some((t) => ["hundred", "thousand", "tausand", "savi", "saavira", "hajar", "lakh", "lac", "lakhs", "k"].includes(t));
 
+      // Pure digit string like "5000" or "2500"
+      if (tokens.length === 1 && /^\d+(?:\.\d+)?$/.test(tokens[0])) {
+        const val = parseFloat(tokens[0]);
+        return val > 0 ? Math.round(val) : null;
+      }
+
+      // Individual spoken digits like "five zero zero zero"
       if (!hasScale && tokens.length >= 2 && tokens.every((t) => /^\d$/.test(t) || (t in ones && ones[t] <= 9))) {
         const joined = tokens.map((t) => (/^\d$/.test(t) ? t : String(ones[t]))).join("");
         const parsed = parseInt(joined, 10);
@@ -378,8 +778,8 @@
       let found = false;
 
       for (const tok of tokens) {
-        if (/^\d+$/.test(tok)) {
-          current += parseInt(tok, 10);
+        if (/^\d+(?:\.\d+)?$/.test(tok)) {
+          current += parseFloat(tok);
           found = true;
         } else if (tok in ones) {
           current += ones[tok];
@@ -401,7 +801,7 @@
         }
       }
 
-      const result = total + current;
+      const result = Math.round(total + current);
       return found && result > 0 ? result : null;
     }
 
@@ -424,22 +824,12 @@
       handleSpokenUtterance(raw);
     }
 
-    async function handleSpokenUtterance(rawText) {
+    function handleSpokenUtterance(rawText) {
       if (!isThumbHeld) return;
       const clean = rawText.trim();
 
       if (state === "ASK_NAME") {
-        let match = findBestAccountMatch(clean);
-        if (!match) {
-          try {
-            const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(clean)}`);
-            if (res.ok) {
-              const apiAcc = await res.json();
-              match = findBestAccountMatch(apiAcc.name) || apiAcc;
-            }
-          } catch (e) {}
-        }
-
+        const match = findBestAccountMatch(clean);
         if (match) {
           txData.matchedUser = match;
           const last4 = match.account.slice(-4);
@@ -479,7 +869,7 @@
         if (parsedAmount && parsedAmount > 0) {
           selectAmount(parsedAmount);
         } else {
-          speak("Please say the exact amount in rupees again.", true);
+          speak(`I heard ${clean}. Please say the amount in rupees again.`, true);
         }
         return;
       }
@@ -530,10 +920,8 @@
       stopListening();
       txData.amount = amt;
       const formattedAmt = `₹ ${amt.toLocaleString("en-IN")}`;
-      const previewVal = document.getElementById("amount-preview-value");
-      const previewBox = document.getElementById("amount-preview-box");
-      if (previewVal) previewVal.textContent = formattedAmt;
-      if (previewBox) previewBox.style.display = "block";
+      document.getElementById("amount-preview-value").textContent = formattedAmt;
+      document.getElementById("amount-preview-box").style.display = "block";
       document.getElementById("final-summary-text").textContent = `${txData.txType} of ${formattedAmt} — ${txData.matchedUser.name}`;
       document.getElementById("final-confirm-box").style.display = "block";
       setKioskState("VERIFY_AMOUNT");
@@ -542,13 +930,15 @@
 
     function retryAmount() {
       document.getElementById("final-confirm-box").style.display = "none";
-      const previewBox = document.getElementById("amount-preview-box");
-      if (previewBox) previewBox.style.display = "none";
+      document.getElementById("amount-preview-box").style.display = "none";
       txData.amount = null;
       setKioskState("ASK_AMOUNT");
       speak("Say the exact amount in rupees again.", true);
     }
 
+    // ==========================================
+    // ACTIVATION, BIOMETRICS & PRINTING
+    // ==========================================
     function activateKiosk() {
       document.getElementById("activation-overlay").style.display = "none";
       renderAccountList();
@@ -715,33 +1105,9 @@
       setKioskState("DONE");
       document.getElementById("step-workspace").style.display = "none";
 
-      let refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      let timestamp = new Date().toLocaleString("en-IN");
-      let hash = "";
-
-      try {
-        const res = await fetch(`${BACKEND_API_URL}/api/generate-slip`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: txData.matchedUser.name,
-            account: txData.matchedUser.account,
-            tx_type: txData.txType,
-            amount: txData.amount,
-            biometric_pulses: biometricPulseCount || 1
-          })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          refId = data.reference_id;
-          timestamp = data.timestamp;
-          hash = data.esign_hash;
-        }
-      } catch (e) {}
-
-      if (!hash) {
-        hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${Date.now()}`);
-      }
+      const refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const timestamp = new Date().toLocaleString("en-IN");
+      const hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount || 1}:${refId}:${timestamp}`);
 
       document.getElementById("slip-tx-type").textContent = `${txData.txType} SLIP`;
       document.getElementById("slip-timestamp").textContent = timestamp;
@@ -765,8 +1131,7 @@
       clearTimeout(speakWatchdog);
       clearInterval(biometricHeartbeatTimer);
       txData = { matchedUser: null, txType: null, amount: null };
-      const previewBox = document.getElementById("amount-preview-box");
-      if (previewBox) previewBox.style.display = "none";
+      document.getElementById("amount-preview-box").style.display = "none";
       document.getElementById("sim-hold-toggle").checked = false;
       isSimHold = false;
       isThumbHeld = false;
@@ -812,8 +1177,7 @@
       if (newState === "ASK_NAME") document.getElementById("confirm-name-box").style.display = "none";
       if (newState === "ASK_TX") document.getElementById("confirm-tx-box").style.display = "none";
       if (newState === "ASK_AMOUNT") {
-        const previewBox = document.getElementById("amount-preview-box");
-        if (previewBox) previewBox.style.display = "none";
+        document.getElementById("amount-preview-box").style.display = "none";
         document.getElementById("final-confirm-box").style.display = "none";
       }
       hideBanner();
@@ -872,3 +1236,5 @@
       return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
     }
   </script>
+</body>
+</html>
