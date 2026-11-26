@@ -4,348 +4,385 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VaaniBank — Voice-Assisted Biometric Banking Slip</title>
-  <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-  <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
-  <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap)" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <style>
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .font-mono { font-family: 'JetBrains Mono', monospace; }
-
-    @keyframes pulseRing {
-      0% { transform: scale(0.96); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); }
-      70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); }
-      100% { transform: scale(0.96); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    :root {
+      --bg: #050811;
+      --panel: #0f172a;
+      --panel-2: #080d1a;
+      --border: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #10b981;
     }
-    @keyframes scanLine {
-      0%, 100% { top: 14%; opacity: 0.25; }
-      50% { top: 82%; opacity: 1; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
     }
-    .listening-pulse { animation: pulseRing 1.5s infinite; }
-    .scanner-beam { animation: scanLine 1.7s ease-in-out infinite; }
-    .no-select { user-select: none; -webkit-user-select: none; }
-
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 22px;
+    }
+    .subpanel {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .btn {
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #f8fafc;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: #334155; }
+    .btn-accent {
+      border: none;
+      background: var(--accent);
+      color: #052e16;
+      font-weight: 700;
+    }
+    .btn-accent:hover { background: #34d399; }
+    .thumb-circle {
+      width: 156px;
+      height: 156px;
+      border-radius: 9999px;
+      border: 3px solid #334155;
+      background: #070c18;
+      color: #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .thumb-circle.locked {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.12);
+      color: #6ee7b7;
+    }
+    .thumb-icon {
+      width: 48px;
+      height: 48px;
+      max-width: 48px;
+      max-height: 48px;
+      flex-shrink: 0;
+    }
+    .grid-main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 900px) {
+      .grid-main { grid-template-columns: 5fr 7fr; }
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      max-width: 1120px;
+      margin: 18px auto 0;
+      padding: 0 20px;
+    }
+    .step-pill {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .step-pill.active {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.12);
+      color: #a7f3d0;
+    }
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 9999px;
+      background: #1e293b;
+      color: #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-pill.active .step-num {
+      background: #10b981;
+      color: #052e16;
+    }
+    input[type="text"], input[type="number"] {
+      background: #060a14;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      width: 100%;
+    }
     @media print {
       body * { visibility: hidden; }
       #printable-slip, #printable-slip * { visibility: visible; }
       #printable-slip {
         position: fixed; left: 0; top: 0; width: 100%;
-        border: 2px solid #0f172a; box-shadow: none; background: #fff;
+        background: #ffffff; color: #0f172a; padding: 24px;
       }
       .no-print { display: none !important; }
     }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-emerald-500/30">
+<body>
 
-  <!-- Initial Activation Overlay -->
-  <div id="activation-overlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
-    <div class="max-w-md w-full bg-slate-900/90 border border-slate-700/80 rounded-3xl p-8 shadow-2xl">
-      <div class="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-5 text-4xl shadow-inner">
-        🏦
-      </div>
-      <h1 class="text-2xl font-extrabold tracking-tight text-white mb-2">Voice-Assisted Biometric Banking Slip</h1>
-      <p class="text-slate-400 text-sm leading-relaxed mb-7">
-        Gemini-powered voice banking kiosk with continuous biometric thumb-lock security and SHA-256 e-Sign slip generation.
+  <!-- Start Overlay -->
+  <div id="activation-overlay" class="no-print" style="position:fixed;inset:0;background:rgba(5,8,17,0.96);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div class="panel" style="max-width:420px;width:100%;text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">🏦</div>
+      <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
+      <p style="margin:0 0 20px;font-size:13px;color:#94a3b8;line-height:1.5;">
+        Voice-guided deposit and withdrawal slip kiosk with continuous thumb lock and SHA-256 verification hash.
       </p>
-      <button onclick="activateKiosk()" class="w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 font-bold rounded-xl text-base transition shadow-lg shadow-emerald-500/20">
+      <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:12px 16px;font-size:14px;">
         Start Kiosk Session
       </button>
-      <p class="text-[11px] text-slate-500 mt-4">
-        Gemini AI Intent + Instant Speech Fallback + Watchdog Control.
-      </p>
     </div>
   </div>
 
-  <!-- Top Navigation Bar -->
-  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800/80 px-6 py-4 sticky top-0 z-30 no-print">
-    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center gap-3.5">
-        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-xl">
-          🏦
-        </div>
-        <div>
-          <h1 class="font-extrabold text-lg tracking-tight text-white leading-none">Voice-Assisted Biometric Banking Slip</h1>
-          <p class="text-xs text-slate-400 mt-0.5">VaaniBank Accessible Kiosk Terminal</p>
-        </div>
+  <!-- Header -->
+  <header class="no-print" style="background:#0b1120;border-bottom:1px solid #1e293b;padding:14px 20px;">
+    <div style="max-width:1120px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+      <div>
+        <div style="font-weight:800;font-size:17px;">Voice-Assisted Biometric Banking Slip</div>
+        <div style="font-size:12px;color:#94a3b8;">VaaniBank Kiosk Terminal</div>
       </div>
-
-      <div class="flex flex-wrap items-center gap-3">
-        <button onclick="toggleAccountModal(true)" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 flex items-center gap-2 transition">
-          <span>➕</span> Accounts (<span id="account-count">3</span>)
-        </button>
-
-        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-          <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition">
-            Prototype Mode
-          </button>
-          <button id="btn-user-mode" onclick="setKioskMode('user')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">
-            User Mode (L1 Hardware)
-          </button>
-        </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+        <button onclick="toggleAccountModal(true)" class="btn">+ Accounts (<span id="account-count">3</span>)</button>
+        <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="btn btn-accent">Prototype Mode</button>
+        <button id="btn-user-mode" onclick="setKioskMode('user')" class="btn">User Mode (L1)</button>
       </div>
     </div>
   </header>
 
   <!-- Alert Banner -->
-  <div id="alert-banner" class="hidden px-6 py-3 text-center font-semibold text-xs tracking-wide no-print"></div>
+  <div id="alert-banner" class="no-print" style="display:none;padding:10px 20px;text-align:center;font-size:12px;font-weight:700;background:#991b1b;color:#fecaca;"></div>
 
-  <!-- Visual 4-Step Progress Bar -->
-  <div class="max-w-6xl w-full mx-auto px-6 pt-6 no-print">
-    <div class="grid grid-cols-4 gap-2 sm:gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3">
-      <div id="prog-1" class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
-        <span class="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-bold text-xs flex items-center justify-center shrink-0">1</span>
-        <span class="text-xs font-bold truncate">Thumb Lock</span>
-      </div>
-      <div id="prog-2" class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-500">
-        <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center shrink-0">2</span>
-        <span class="text-xs font-semibold truncate">Account</span>
-      </div>
-      <div id="prog-3" class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-500">
-        <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center shrink-0">3</span>
-        <span class="text-xs font-semibold truncate">Type</span>
-      </div>
-      <div id="prog-4" class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-500">
-        <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center shrink-0">4</span>
-        <span class="text-xs font-semibold truncate">Amount &amp; Slip</span>
-      </div>
-    </div>
+  <!-- 4-Step Progress -->
+  <div class="steps-grid no-print">
+    <div id="prog-1" class="step-pill active"><span class="step-num">1</span><span>Thumb Lock</span></div>
+    <div id="prog-2" class="step-pill"><span class="step-num">2</span><span>Account</span></div>
+    <div id="prog-3" class="step-pill"><span class="step-num">3</span><span>Type</span></div>
+    <div id="prog-4" class="step-pill"><span class="step-num">4</span><span>Amount &amp; Slip</span></div>
   </div>
 
-  <!-- Main Workspace -->
-  <main class="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <!-- Main Columns -->
+  <main class="grid-main">
 
-    <!-- Left Column: Biometric Thumb Sensor -->
-    <section class="lg:col-span-5 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl no-print">
+    <!-- Left: Biometrics & Mic -->
+    <section class="panel no-print" style="display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
       <div>
-        <div class="flex items-center justify-between mb-2">
-          <h2 class="font-bold text-sm uppercase tracking-wider text-slate-300">Biometric Dead-Man's Switch</h2>
-          <span id="biometric-badge" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400">WAITING</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <h2 style="margin:0;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#cbd5e1;">Biometric Thumb Lock</h2>
+          <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
         </div>
-        <p class="text-xs text-slate-400 leading-relaxed mb-6">
-          Maintain continuous thumb contact until your slip is generated. Lifting early immediately terminates the session for security.
+        <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
+          Hold your thumb until slip generation finishes. Releasing early aborts the session for security.
         </p>
 
-        <div class="flex flex-col items-center justify-center my-4">
+        <div style="display:flex;justify-content:center;margin:14px 0;">
           <button
             id="thumb-pad"
+            type="button"
             onmousedown="startThumbHold()"
             ontouchstart="startThumbHold(event)"
             onmouseup="releaseThumbHold()"
+            onmouseleave="releaseThumbHold()"
             ontouchend="releaseThumbHold()"
-            class="no-select relative overflow-hidden w-48 h-48 rounded-full border-4 border-slate-700 bg-slate-950/90 hover:border-emerald-500/70 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer shadow-inner">
-            <div id="scan-beam" class="hidden scanner-beam absolute left-4 right-4 h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399]"></div>
-            <svg class="w-16 h-16 text-slate-400 mb-2 transition-colors" id="thumb-svg" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            class="thumb-circle">
+            <svg class="thumb-icon" id="thumb-svg" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
             </svg>
-            <span id="thumb-label" class="text-[11px] font-bold uppercase tracking-wider text-slate-300 text-center px-4">
-              Press &amp; Hold Thumb
-            </span>
+            <span id="thumb-label" style="font-size:11px;font-weight:700;text-align:center;padding:0 10px;">Press &amp; Hold Thumb</span>
           </button>
         </div>
 
-        <div class="bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 mt-5 text-xs space-y-2">
-          <div class="flex justify-between items-center">
-            <span class="text-slate-400">Continuous Heartbeat</span>
-            <span id="bio-heartbeat-status" class="font-mono text-slate-500">Idle</span>
+        <div class="subpanel" style="font-size:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span style="color:#94a3b8;">Continuous Heartbeat</span>
+            <span id="bio-heartbeat-status" class="mono" style="color:#64748b;">Idle</span>
           </div>
-          <div class="flex justify-between items-center border-t border-slate-800/80 pt-2">
-            <span class="text-slate-400">Mid-Session Auth Scan</span>
-            <span id="bio-auth-status" class="font-mono text-slate-500">Pending</span>
+          <div style="display:flex;justify-content:space-between;border-top:1px solid #1e293b;padding-top:8px;">
+            <span style="color:#94a3b8;">Mid-Session Auth Scan</span>
+            <span id="bio-auth-status" class="mono" style="color:#64748b;">Pending</span>
           </div>
         </div>
       </div>
 
-      <div class="space-y-3 pt-5 border-t border-slate-800 mt-5">
-        <label class="flex items-center justify-between bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/60 px-4 py-3 rounded-2xl cursor-pointer transition">
+      <div style="border-top:1px solid #1e293b;padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+        <label class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;">
           <div>
-            <span class="text-xs font-bold text-slate-100 block">Lock Thumb Contact (Demo Hold)</span>
-            <span class="text-[11px] text-slate-400">Keep ON for hands-free demo; turn OFF to test abort</span>
+            <div style="font-size:12px;font-weight:700;">Lock Thumb Contact (Demo Hold)</div>
+            <div style="font-size:11px;color:#94a3b8;">Check to keep thumb locked during voice testing</div>
           </div>
-          <input id="sim-hold-toggle" type="checkbox" onchange="toggleSimulatedHold(this.checked)" class="w-5 h-5 accent-emerald-500 cursor-pointer rounded" />
+          <input id="sim-hold-toggle" type="checkbox" onchange="toggleSimulatedHold(this.checked)" style="width:18px;height:18px;cursor:pointer;" />
         </label>
 
-        <div class="flex items-center justify-between bg-slate-950 px-4 py-3 rounded-2xl border border-slate-800 gap-2">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span id="mic-dot" class="w-3 h-3 rounded-full bg-slate-600 shrink-0"></span>
-            <span id="mic-status-text" class="text-xs font-medium text-slate-400 truncate">Mic OFF</span>
-          </div>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <button onclick="sendRecordingNow()" class="px-2.5 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 rounded-lg text-xs font-bold transition">
-              Send
-            </button>
-            <button onclick="manualMicTrigger()" class="px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 rounded-lg text-xs font-bold transition">
-              🎤 Speak
-            </button>
+        <div class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span id="mic-status-text" style="font-size:12px;font-weight:600;color:#94a3b8;">Mic Ready</span>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="manualMicTrigger()" class="btn btn-accent" style="padding:6px 10px;font-size:12px;">🎤 Speak</button>
+            <button type="button" onclick="sendRecordingNow()" class="btn" style="padding:6px 10px;font-size:12px;">Send</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Right Column: Gemini Voice Assistant & Printable Slip -->
-    <section class="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
+    <!-- Right: Prompt & Slip -->
+    <section class="panel" style="display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
       <div>
-        <div class="bg-gradient-to-br from-slate-950 to-slate-900 border border-slate-800 rounded-2xl p-6 mb-6 no-print">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-[11px] uppercase tracking-widest font-bold text-emerald-400" id="step-counter">Step 1 / 4 — Waiting for Thumb</span>
-            <button onclick="repeatCurrentQuestion()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300 font-medium transition">
-              🔊 Repeat
-            </button>
+        <div class="subpanel no-print" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+            <span id="step-counter" style="font-size:11px;font-weight:700;text-transform:uppercase;color:#34d399;">Step 1 / 4 — Waiting for Thumb</span>
+            <button type="button" onclick="repeatCurrentQuestion()" class="btn" style="padding:5px 10px;font-size:12px;">🔊 Repeat</button>
           </div>
-          <p id="kiosk-prompt-text" class="text-xl font-semibold text-white leading-snug">
+          <div id="kiosk-prompt-text" style="font-size:18px;font-weight:700;line-height:1.4;">
             Click "Start Kiosk Session" to begin.
-          </p>
-          <p id="heard-transcript" class="text-xs text-emerald-300/90 mt-3 font-medium min-h-[18px]"></p>
+          </div>
+          <div id="heard-transcript" style="font-size:12px;color:#6ee7b7;margin-top:8px;min-height:18px;"></div>
         </div>
 
-        <div id="step-workspace" class="space-y-4 no-print">
-          <div id="ui-step-1" class="bg-slate-950/50 border border-dashed border-slate-800 rounded-2xl p-8 text-center">
-            <p class="text-slate-300 text-sm font-medium mb-1">Ready for Biometric Verification</p>
-            <p class="text-slate-500 text-xs">Press and hold the fingerprint sensor on the left, or switch ON <strong>Lock Thumb Contact</strong>.</p>
+        <div id="step-workspace" class="no-print">
+          <div id="ui-step-1" class="subpanel" style="text-align:center;padding:28px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Place and hold your thumb to start</div>
+            <div style="font-size:12px;color:#94a3b8;">You can hold the thumb button or check "Lock Thumb Contact (Demo Hold)".</div>
           </div>
 
-          <div id="ui-step-2" class="hidden space-y-4">
-            <label class="block text-xs uppercase tracking-wider font-bold text-slate-400">Customer Name (Voice via Gemini or Manual Fallback)</label>
-            <div class="flex gap-2">
-              <input id="manual-name-input" type="text" placeholder="e.g., Drushya S N or Ramesh Kumar" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition" />
-              <button onclick="handleManualInput(document.getElementById('manual-name-input').value)" class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition">
-                Submit
-              </button>
+          <div id="ui-step-2" style="display:none;">
+            <label style="display:block;font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:8px;">Customer Name (Voice or Text)</label>
+            <div style="display:flex;gap:8px;">
+              <input id="manual-name-input" type="text" placeholder="e.g., Drushya S N or Ramesh Kumar" />
+              <button type="button" onclick="handleManualInput(document.getElementById('manual-name-input').value)" class="btn btn-accent">Submit</button>
             </div>
-            <div id="confirm-name-box" class="hidden bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p class="text-[11px] uppercase tracking-wider font-bold text-emerald-400">Account Matched — Say "Yes" or "No"</p>
-                <p id="matched-account-display" class="font-bold text-base text-white mt-0.5"></p>
-              </div>
-              <div class="flex gap-2">
-                <button onclick="confirmMatchedName(true)" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition">Yes, Confirm</button>
-                <button onclick="confirmMatchedName(false)" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-sm transition">No</button>
+            <div id="confirm-name-box" class="subpanel" style="display:none;margin-top:12px;border-color:#10b981;">
+              <div id="matched-account-display" style="font-weight:700;margin-bottom:10px;"></div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="confirmMatchedName(true)" class="btn btn-accent">Yes, Confirm</button>
+                <button type="button" onclick="confirmMatchedName(false)" class="btn">No</button>
               </div>
             </div>
           </div>
 
-          <div id="ui-step-3" class="hidden space-y-4">
-            <p class="text-xs uppercase tracking-wider font-bold text-slate-400">Select Transaction Type (Say "Deposit" or "Withdrawal")</p>
-            <div class="grid grid-cols-2 gap-4">
-              <button onclick="selectTransactionType('DEPOSIT')" class="py-7 bg-emerald-500/10 hover:bg-emerald-500/20 border-2 border-emerald-500/60 rounded-2xl font-extrabold text-lg text-emerald-300 transition flex flex-col items-center gap-1">
-                <span class="text-2xl">⬇️</span>
-                <span>DEPOSIT</span>
-              </button>
-              <button onclick="selectTransactionType('WITHDRAWAL')" class="py-7 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-amber-500/60 rounded-2xl font-extrabold text-lg text-amber-300 transition flex flex-col items-center gap-1">
-                <span class="text-2xl">⬆️</span>
-                <span>WITHDRAWAL</span>
-              </button>
+          <div id="ui-step-3" style="display:none;">
+            <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">Transaction Type</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <button type="button" onclick="selectTransactionType('DEPOSIT')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#10b981;color:#6ee7b7;">⬇️ DEPOSIT</button>
+              <button type="button" onclick="selectTransactionType('WITHDRAWAL')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#f59e0b;color:#fcd34d;">⬆️ WITHDRAWAL</button>
             </div>
-            <div id="confirm-tx-box" class="hidden bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 flex items-center justify-between gap-3">
-              <p id="tx-verify-display" class="font-bold text-sm text-white"></p>
-              <div class="flex gap-2">
-                <button onclick="confirmTransactionType(true)" class="px-5 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-sm">Yes</button>
-                <button onclick="confirmTransactionType(false)" class="px-4 py-2 bg-slate-800 text-white font-semibold rounded-xl text-sm">No</button>
+            <div id="confirm-tx-box" class="subpanel" style="display:none;margin-top:12px;border-color:#10b981;">
+              <div id="tx-verify-display" style="font-weight:700;margin-bottom:10px;"></div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="confirmTransactionType(true)" class="btn btn-accent">Yes</button>
+                <button type="button" onclick="confirmTransactionType(false)" class="btn">No</button>
               </div>
             </div>
           </div>
 
-          <div id="ui-step-4" class="hidden space-y-4">
-            <label class="block text-xs uppercase tracking-wider font-bold text-slate-400">Transaction Amount in Rupees (₹)</label>
-            <div class="flex gap-2">
-              <input id="manual-amount-input" type="number" placeholder="e.g., 5000" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3.5 text-white text-lg font-mono focus:outline-none focus:border-emerald-500 transition" />
-              <button onclick="handleManualInput(document.getElementById('manual-amount-input').value)" class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition">
-                Submit
-              </button>
+          <div id="ui-step-4" style="display:none;">
+            <label style="display:block;font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:8px;">Amount in Rupees (₹)</label>
+            <div style="display:flex;gap:8px;">
+              <input id="manual-amount-input" type="number" placeholder="e.g., 5000" class="mono" />
+              <button type="button" onclick="handleManualInput(document.getElementById('manual-amount-input').value)" class="btn btn-accent">Submit</button>
             </div>
-            <div id="final-confirm-box" class="hidden bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-              <p id="final-summary-text" class="text-sm font-bold text-white"></p>
-              <div class="flex gap-2">
-                <button onclick="runMidSessionBiometricScan()" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition">Yes, Authenticate &amp; Print</button>
-                <button onclick="retryAmount()" class="px-4 py-2.5 bg-slate-800 text-white font-semibold rounded-xl text-sm">No</button>
+            <div id="final-confirm-box" class="subpanel" style="display:none;margin-top:12px;border-color:#10b981;">
+              <div id="final-summary-text" style="font-weight:700;margin-bottom:10px;"></div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="runMidSessionBiometricScan()" class="btn btn-accent">Yes, Authenticate &amp; Print</button>
+                <button type="button" onclick="retryAmount()" class="btn">No</button>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Printable Slip -->
-        <div id="printable-slip" class="hidden bg-white text-slate-900 rounded-2xl p-6 shadow-2xl border border-slate-200 mt-4">
-          <div class="flex justify-between items-start border-b-2 border-dashed border-slate-300 pb-4 mb-5">
+        <div id="printable-slip" style="display:none;background:#ffffff;color:#0f172a;border-radius:16px;padding:22px;margin-top:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px dashed #cbd5e1;padding-bottom:12px;margin-bottom:16px;">
             <div>
-              <h3 class="font-extrabold text-xl tracking-tight text-slate-900">VAANIBANK INDIA LTD.</h3>
-              <p class="text-xs text-slate-500 font-medium">Voice-Assisted Biometric Banking Slip Receipt</p>
+              <div style="font-weight:800;font-size:18px;">VAANIBANK INDIA LTD.</div>
+              <div style="font-size:12px;color:#64748b;">Voice-Assisted Biometric Banking Slip</div>
             </div>
-            <div class="text-right text-xs">
-              <span class="inline-block px-2.5 py-1 rounded-md bg-slate-900 text-white font-bold tracking-wider" id="slip-tx-type">DEPOSIT SLIP</span>
-              <p class="text-slate-500 mt-1.5" id="slip-timestamp"></p>
+            <div style="text-align:right;font-size:12px;">
+              <div id="slip-tx-type" style="font-weight:800;background:#0f172a;color:#fff;padding:4px 8px;border-radius:6px;display:inline-block;">DEPOSIT SLIP</div>
+              <div id="slip-timestamp" style="color:#64748b;margin-top:4px;"></div>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-y-3.5 text-sm mb-6">
-            <div class="text-slate-500 font-medium">Account Holder</div>
-            <div class="font-bold text-right text-slate-900" id="slip-name"></div>
-
-            <div class="text-slate-500 font-medium">Account Number</div>
-            <div class="font-mono font-bold text-right text-slate-900" id="slip-account"></div>
-
-            <div class="text-slate-500 font-medium">Transaction Amount</div>
-            <div class="font-extrabold text-xl text-right text-emerald-700" id="slip-amount"></div>
-
-            <div class="text-slate-500 font-medium">Reference ID</div>
-            <div class="font-mono text-xs text-right text-slate-700" id="slip-ref"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:14px;margin-bottom:16px;">
+            <div style="color:#64748b;">Account Holder</div>
+            <div id="slip-name" style="font-weight:700;text-align:right;"></div>
+            <div style="color:#64748b;">Account Number</div>
+            <div id="slip-account" class="mono" style="font-weight:700;text-align:right;"></div>
+            <div style="color:#64748b;">Amount</div>
+            <div id="slip-amount" style="font-weight:800;font-size:18px;color:#047857;text-align:right;"></div>
+            <div style="color:#64748b;">Reference ID</div>
+            <div id="slip-ref" class="mono" style="font-size:12px;text-align:right;"></div>
           </div>
 
-          <div class="bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs font-mono">
-            <div class="flex items-center justify-between font-bold text-emerald-700 mb-1.5">
-              <span>✔ CRYPTOGRAPHIC BIOMETRIC e-SIGN VERIFIED</span>
-              <span>L1 AUTH</span>
-            </div>
-            <p class="text-[11px] text-slate-600 break-all" id="slip-hash"></p>
-            <p class="text-[10px] text-slate-500 mt-1.5 font-sans">
-              Authenticated via continuous thumb-hold &amp; mid-session biometric verification. Physical signature not required.
-            </p>
+          <div class="mono" style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;font-size:11px;">
+            <div style="font-weight:700;color:#047857;margin-bottom:4px;">✔ CRYPTOGRAPHIC BIOMETRIC e-SIGN VERIFIED</div>
+            <div id="slip-hash" style="word-break:break-all;color:#334155;"></div>
           </div>
 
-          <div class="mt-6 flex gap-3 no-print">
-            <button onclick="window.print()" class="flex-1 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition">
-              🖨️ Print Slip
-            </button>
-            <button onclick="resetAfterCompletion()" class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition">
-              Done / New User
-            </button>
+          <div class="no-print" style="display:flex;gap:10px;margin-top:16px;">
+            <button type="button" onclick="window.print()" class="btn" style="flex:1;background:#0f172a;color:#fff;">🖨️ Print Slip</button>
+            <button type="button" onclick="resetAfterCompletion()" class="btn btn-accent">Done / New User</button>
           </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Register Accounts Modal -->
-  <div id="account-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 flex items-center justify-center p-4 no-print">
-    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl">
-      <div class="flex justify-between items-center mb-5">
-        <h3 class="font-bold text-lg text-white">Register Demo Bank Account</h3>
-        <button onclick="toggleAccountModal(false)" class="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-lg">&times;</button>
+  <!-- Accounts Modal -->
+  <div id="account-modal" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(5,8,17,0.85);z-index:40;align-items:center;justify-content:center;padding:16px;">
+    <div class="panel" style="max-width:420px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="margin:0;font-size:16px;font-weight:700;">Register Demo Bank Account</h3>
+        <button type="button" onclick="toggleAccountModal(false)" class="btn" style="padding:4px 10px;">✕</button>
       </div>
-      <div class="space-y-3.5 mb-5">
-        <div>
-          <label class="text-xs font-semibold text-slate-400 block mb-1.5">Customer Full Name (Spoken Name)</label>
-          <input id="new-acc-name" type="text" placeholder="e.g., Ananya Sharma" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500" />
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+        <input id="new-acc-name" type="text" placeholder="Customer Full Name (e.g., Ananya Sharma)" />
+        <div style="display:flex;gap:8px;">
+          <input id="new-acc-num" type="text" placeholder="10-digit account number" class="mono" />
+          <button type="button" onclick="generateRandomAccountNum()" class="btn">Auto</button>
         </div>
-        <div>
-          <label class="text-xs font-semibold text-slate-400 block mb-1.5">10-Digit Account Number</label>
-          <div class="flex gap-2">
-            <input id="new-acc-num" type="text" placeholder="10 digits" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500" />
-            <button onclick="generateRandomAccountNum()" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-200 transition">Auto</button>
-          </div>
-        </div>
-        <button onclick="addNewAccount()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition">
-          Save Account to Kiosk
-        </button>
+        <button type="button" onclick="addNewAccount()" class="btn btn-accent">Save Account</button>
       </div>
-      <div class="border-t border-slate-800 pt-4">
-        <p class="text-xs font-bold text-slate-400 mb-2.5">Registered Accounts:</p>
-        <ul id="registered-accounts-list" class="max-h-40 overflow-y-auto space-y-2 text-xs"></ul>
-      </div>
+      <ul id="registered-accounts-list" style="list-style:none;padding:0;margin:0;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-size:12px;"></ul>
     </div>
   </div>
 
   <script>
-    const BACKEND_API_URL = "[https://bank-kiosk-api.onrender.com](https://bank-kiosk-api.onrender.com)";
-
+    const BACKEND_API_URL = "https://bank-kiosk-api.onrender.com";
     const DEFAULT_ACCOUNTS = [
       { name: "Drushya S N", account: "7739104826" },
       { name: "Ramesh Kumar", account: "4092817365" },
@@ -360,19 +397,13 @@
     let isSimHold = false;
     let biometricHeartbeatTimer = null;
     let biometricPulseCount = 0;
-
     let txData = { matchedUser: null, txType: null, amount: null };
     let currentPromptText = "";
 
     let audioStream = null;
     let mediaRecorder = null;
     let recordStopTimer = null;
-    let speakWatchdogTimer = null;
     let micHardwareOn = false;
-    let awaitingUserTurn = false;
-    let isSpeakingNow = false;
-    let currentSpeechId = 0;
-    window.currentUtterance = null;
 
     function warmUpBackend() {
       fetch(`${BACKEND_API_URL}/`, { cache: "no-store" }).catch(() => {});
@@ -383,130 +414,69 @@
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
       try {
         audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
         return audioStream;
       } catch (e) {
-        awaitingUserTurn = false;
         updateMicUI("OFF");
-        showBanner("Microphone permission denied. Allow Microphone in Chrome site settings.", "bg-rose-600 text-white");
+        showBanner("Microphone access blocked. Allow Microphone in Chrome site settings.");
         return null;
       }
     }
 
     function pickSupportedMimeType() {
-      const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
-      for (const mime of candidates) {
-        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mime)) return mime;
+      const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+      for (const t of types) {
+        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
       }
       return "";
     }
 
-    function getClipDurationMs() {
-      if (state === "VERIFY_NAME" || state === "VERIFY_TX" || state === "VERIFY_AMOUNT" || state === "ASK_TX") {
-        return 2500;
-      }
-      return 3500;
-    }
-
-    function runBrowserSpeechFallback() {
-      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRec || !isThumbHeld || state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") {
-        if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
-          awaitingUserTurn = true;
-          setTimeout(() => hardStartMic(), 500);
-        }
+    async function manualMicTrigger() {
+      if (!isThumbHeld && state !== "IDLE") {
+        showBanner("Hold your thumb on the scanner first.");
         return;
       }
-      try {
-        const rec = new SpeechRec();
-        rec.lang = "en-IN";
-        rec.interimResults = false;
-        rec.maxAlternatives = 1;
-        updateMicUI("LISTENING");
-        rec.onresult = (ev) => {
-          const text = (ev.results[0]?.[0]?.transcript || "").trim();
-          updateMicUI("OFF");
-          if (text && isThumbHeld) {
-            document.getElementById("heard-transcript").textContent = `Heard (Speech): "${text}"`;
-            applyGeminiIntent({
-              transcript: text,
-              intent: fallbackYes(text) ? "YES" : (fallbackNo(text) ? "NO" : "UNKNOWN"),
-              name: text,
-              amount: extractNumberFromSpeech(text.toLowerCase())
-            });
-          } else if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
-            awaitingUserTurn = true;
-            setTimeout(() => hardStartMic(), 400);
-          }
-        };
-        rec.onerror = () => {
-          updateMicUI("OFF");
-          if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
-            awaitingUserTurn = true;
-            setTimeout(() => hardStartMic(), 600);
-          }
-        };
-        rec.start();
-      } catch (e) {
-        updateMicUI("OFF");
+      if (state === "IDLE") {
+        startThumbHold();
+        return;
       }
-    }
-
-    async function hardStartMic() {
-      if (isSpeakingNow || !awaitingUserTurn || !isThumbHeld || micHardwareOn) return;
-
+      if (micHardwareOn) {
+        sendRecordingNow();
+        return;
+      }
       const stream = await ensureMicStream();
-      if (!stream || !awaitingUserTurn || !isThumbHeld || isSpeakingNow) return;
+      if (!stream) return;
 
       try {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
         const mimeType = pickSupportedMimeType();
         const chunks = [];
         mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
 
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) chunks.push(event.data);
+        mediaRecorder.ondataavailable = (ev) => {
+          if (ev.data && ev.data.size > 0) chunks.push(ev.data);
         };
 
         mediaRecorder.onstop = async () => {
           clearTimeout(recordStopTimer);
           micHardwareOn = false;
-          const wasAwaiting = awaitingUserTurn;
-          awaitingUserTurn = false;
-
           const rawType = mediaRecorder?.mimeType || "audio/webm";
           const cleanType = rawType.split(";")[0].trim() || "audio/webm";
-          const audioBlob = new Blob(chunks, { type: cleanType });
+          const blob = new Blob(chunks, { type: cleanType });
           mediaRecorder = null;
-
-          if (!isThumbHeld || state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") {
-            updateMicUI("OFF");
-            return;
+          updateMicUI("OFF");
+          if (blob.size > 250) {
+            await sendAudioToGeminiTurn(blob, cleanType);
+          } else {
+            document.getElementById("heard-transcript").textContent = "No audio captured — click Speak and talk clearly.";
           }
-
-          if (!wasAwaiting || audioBlob.size < 300) {
-            awaitingUserTurn = true;
-            updateMicUI("OFF");
-            setTimeout(() => hardStartMic(), 250);
-            return;
-          }
-
-          await sendAudioToGeminiTurn(audioBlob, cleanType);
         };
 
         micHardwareOn = true;
         updateMicUI("LISTENING");
         mediaRecorder.start();
-
-        recordStopTimer = setTimeout(() => {
-          if (mediaRecorder && mediaRecorder.state === "recording") {
-            try { mediaRecorder.stop(); } catch (e) {}
-          }
-        }, getClipDurationMs());
+        recordStopTimer = setTimeout(() => sendRecordingNow(), 4000);
       } catch (e) {
         micHardwareOn = false;
         updateMicUI("OFF");
@@ -521,7 +491,6 @@
     }
 
     function hardStopMic() {
-      awaitingUserTurn = false;
       clearTimeout(recordStopTimer);
       if (mediaRecorder) {
         try {
@@ -531,15 +500,29 @@
         mediaRecorder = null;
       }
       micHardwareOn = false;
-      updateMicUI(isSpeakingNow ? "SPEAKING" : "OFF");
+      updateMicUI("OFF");
+    }
+
+    function updateMicUI(status) {
+      const el = document.getElementById("mic-status-text");
+      if (status === "LISTENING") {
+        el.textContent = "Recording... click Send when done";
+        el.style.color = "#34d399";
+      } else if (status === "PROCESSING") {
+        el.textContent = "Sending to Gemini...";
+        el.style.color = "#38bdf8";
+      } else {
+        el.textContent = "Click Speak to talk";
+        el.style.color = "#94a3b8";
+      }
     }
 
     async function sendAudioToGeminiTurn(audioBlob, mimeType) {
       updateMicUI("PROCESSING");
-      document.getElementById("heard-transcript").textContent = "Gemini understanding your voice...";
+      document.getElementById("heard-transcript").textContent = "Processing voice with Gemini...";
 
       const controller = new AbortController();
-      const netTimeout = setTimeout(() => controller.abort(), 20000);
+      const timer = setTimeout(() => controller.abort(), 20000);
 
       try {
         const formData = new FormData();
@@ -553,223 +536,103 @@
           body: formData,
           signal: controller.signal
         });
-        clearTimeout(netTimeout);
-
+        clearTimeout(timer);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-
-        if (!isThumbHeld || state === "IDLE" || state === "DONE") {
-          updateMicUI("OFF");
-          return;
-        }
-
-        const transcript = (data.transcript || "").trim();
-        const intent = (data.intent || "UNKNOWN").toUpperCase();
-
-        if (!transcript && intent === "UNKNOWN") {
-          document.getElementById("heard-transcript").textContent = "Didn't catch that — speak again or click a button.";
-          awaitingUserTurn = true;
-          updateMicUI("OFF");
-          setTimeout(() => hardStartMic(), 250);
-          return;
-        }
-
-        document.getElementById("heard-transcript").textContent = `Heard: "${transcript || intent}" (${intent})`;
         updateMicUI("OFF");
+
+        const heard = (data.transcript || data.intent || "").trim();
+        if (!heard || data.intent === "UNKNOWN") {
+          document.getElementById("heard-transcript").textContent = "Could not clearly hear — click Speak again or use buttons/input.";
+          return;
+        }
+        document.getElementById("heard-transcript").textContent = `Heard: "${heard}"`;
         await applyGeminiIntent(data);
-      } catch (err) {
-        clearTimeout(netTimeout);
-        document.getElementById("heard-transcript").textContent = "Using instant speech fallback — say Yes/No or click a button.";
+      } catch (e) {
+        clearTimeout(timer);
         updateMicUI("OFF");
-        runBrowserSpeechFallback();
+        document.getElementById("heard-transcript").textContent = "Backend slow or unreachable — use the buttons or text box below.";
       }
     }
 
-    function runSpeech(text, shouldListenAfter) {
-      const myId = ++currentSpeechId;
+    function speakText(text) {
       currentPromptText = text;
-      hardStopMic();
-      clearTimeout(speakWatchdogTimer);
-      try { window.speechSynthesis.cancel(); } catch (e) {}
-
       document.getElementById("kiosk-prompt-text").textContent = text;
-      isSpeakingNow = true;
-      updateMicUI("SPEAKING");
-
-      let doneCalled = false;
-      const finishSpeaking = () => {
-        if (doneCalled || myId !== currentSpeechId) return;
-        doneCalled = true;
-        clearTimeout(speakWatchdogTimer);
-        isSpeakingNow = false;
-        updateMicUI("OFF");
-
-        if (shouldListenAfter && isThumbHeld && state !== "IDLE" && state !== "DONE" && state !== "BIO_SCANNING") {
-          setTimeout(() => {
-            if (myId === currentSpeechId && isThumbHeld && !isSpeakingNow) {
-              awaitingUserTurn = true;
-              hardStartMic();
-            }
-          }, 400);
-        }
-      };
-
-      const estimatedMs = Math.max(1500, Math.min(6000, text.length * 60 + 700));
-      speakWatchdogTimer = setTimeout(finishSpeaking, estimatedMs);
-
-      setTimeout(() => {
-        if (myId !== currentSpeechId || doneCalled) return;
-        try {
-          const utter = new SpeechSynthesisUtterance(text);
-          utter.lang = "en-IN";
-          utter.rate = 1.0;
-          window.currentUtterance = utter;
-          utter.onend = finishSpeaking;
-          utter.onerror = (ev) => {
-            if (ev && (ev.error === "canceled" || ev.error === "interrupted")) return;
-            finishSpeaking();
-          };
-          window.speechSynthesis.speak(utter);
-        } catch (e) {
-          finishSpeaking();
-        }
-      }, 100);
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "en-IN";
+        window.speechSynthesis.speak(utter);
+      } catch (e) {}
     }
-
-    function speakOnly(text) { runSpeech(text, false); }
-    function askAndListen(text) { runSpeech(text, true); }
 
     function repeatCurrentQuestion() {
-      if (!currentPromptText) return;
-      if (isThumbHeld && state !== "IDLE" && state !== "DONE") askAndListen(currentPromptText);
-      else speakOnly(currentPromptText);
-    }
-
-    function manualMicTrigger() {
-      if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
-        currentSpeechId++;
-        clearTimeout(speakWatchdogTimer);
-        try { window.speechSynthesis.cancel(); } catch (e) {}
-        isSpeakingNow = false;
-        awaitingUserTurn = true;
-        hardStartMic();
-      }
-    }
-
-    function updateMicUI(status) {
-      const dot = document.getElementById("mic-dot");
-      const label = document.getElementById("mic-status-text");
-      if (status === "LISTENING") {
-        dot.className = "w-3 h-3 rounded-full bg-emerald-400 listening-pulse";
-        label.textContent = "Mic ON — Speak Now";
-        label.className = "text-xs font-bold text-emerald-400";
-      } else if (status === "SPEAKING") {
-        dot.className = "w-3 h-3 rounded-full bg-amber-400";
-        label.textContent = "Mic OFF (Speaking...)";
-        label.className = "text-xs font-semibold text-amber-400";
-      } else if (status === "PROCESSING") {
-        dot.className = "w-3 h-3 rounded-full bg-sky-400";
-        label.textContent = "Mic OFF (Gemini...)";
-        label.className = "text-xs font-semibold text-sky-400";
-      } else {
-        dot.className = "w-3 h-3 rounded-full bg-slate-600";
-        label.textContent = "Mic OFF";
-        label.className = "text-xs font-medium text-slate-400";
-      }
+      if (currentPromptText) speakText(currentPromptText);
     }
 
     function findBestAccountMatch(spokenQuery) {
-      const cleanQuery = (spokenQuery || "").toLowerCase().replace(/[^a-z\s]/g, "").trim();
-      if (!cleanQuery) return null;
-
-      let bestMatch = null;
-      let bestScore = 0;
-
+      const clean = (spokenQuery || "").toLowerCase().replace(/[^a-z\s]/g, "").trim();
+      if (!clean) return null;
       for (const acc of accountsDB) {
-        const target = acc.name.toLowerCase().replace(/[^a-z\s]/g, "").trim();
-        if (target === cleanQuery || target.includes(cleanQuery) || cleanQuery.includes(target)) {
-          return acc;
-        }
-        const targetFirst = target.split(" ")[0];
-        const queryFirst = cleanQuery.split(" ")[0];
-        const score = Math.max(bigramSimilarity(cleanQuery, target), bigramSimilarity(queryFirst, targetFirst));
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = acc;
+        const target = acc.name.toLowerCase();
+        if (target === clean || target.includes(clean) || clean.includes(target)) return acc;
+      }
+      const firstWord = clean.split(" ")[0];
+      if (firstWord.length >= 3) {
+        for (const acc of accountsDB) {
+          if (acc.name.toLowerCase().startsWith(firstWord)) return acc;
         }
       }
-      return bestScore >= 0.45 ? bestMatch : null;
-    }
-
-    function bigramSimilarity(str1, str2) {
-      if (str1.length < 2 || str2.length < 2) return str1 === str2 ? 1 : 0;
-      const bigrams1 = new Map();
-      for (let i = 0; i < str1.length - 1; i++) {
-        const bg = str1.substring(i, i + 2);
-        bigrams1.set(bg, (bigrams1.get(bg) || 0) + 1);
-      }
-      let intersection = 0;
-      for (let i = 0; i < str2.length - 1; i++) {
-        const bg = str2.substring(i, i + 2);
-        const count = bigrams1.get(bg) || 0;
-        if (count > 0) {
-          bigrams1.set(bg, count - 1);
-          intersection++;
-        }
-      }
-      return (2.0 * intersection) / (str1.length + str2.length - 2);
+      return null;
     }
 
     async function activateKiosk() {
-      document.getElementById("activation-overlay").classList.add("hidden");
+      document.getElementById("activation-overlay").style.display = "none";
       renderAccountList();
       warmUpBackend();
       await ensureMicStream();
-      speakOnly("Welcome to Voice-Assisted Biometric Banking Slip. Place and hold your thumb on the scanner to begin.");
+      speakText("Welcome to Voice-Assisted Biometric Banking Slip. Place and hold your thumb to begin.");
     }
 
     async function setKioskMode(mode) {
       kioskMode = mode;
-      const btnProto = document.getElementById("btn-prototype-mode");
-      const btnUser = document.getElementById("btn-user-mode");
-
+      const pBtn = document.getElementById("btn-prototype-mode");
+      const uBtn = document.getElementById("btn-user-mode");
       if (mode === "prototype") {
-        btnProto.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition";
-        btnUser.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition";
+        pBtn.className = "btn btn-accent";
+        uBtn.className = "btn";
         hideBanner();
-        speakOnly("Prototype Mode active. Place and hold your thumb on the pad.");
+        speakText("Prototype Mode active.");
       } else {
-        btnUser.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 transition";
-        btnProto.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition";
+        uBtn.className = "btn btn-accent";
+        pBtn.className = "btn";
         await checkRDServiceHardware();
       }
     }
 
     async function checkRDServiceHardware() {
-      showBanner("Checking UIDAI L1 Biometric Scanner on [https://127.0.0.1:11100](https://127.0.0.1:11100)...", "bg-amber-600 text-white");
+      showBanner("Checking UIDAI L1 scanner on https://127.0.0.1:11100...");
       try {
         const controller = new AbortController();
         setTimeout(() => controller.abort(), 2000);
-        const res = await fetch("[https://127.0.0.1:11100](https://127.0.0.1:11100)", { method: "RDSERVICE", signal: controller.signal });
+        const res = await fetch("https://127.0.0.1:11100", { method: "RDSERVICE", signal: controller.signal });
         const xml = await res.text();
         if (xml.includes("READY")) {
           hardwareReady = true;
-          showBanner("UIDAI L1 Biometric Scanner Connected & READY.", "bg-emerald-600 text-white");
-          speakOnly("Biometric hardware connected. Place your thumb on the scanner.");
+          hideBanner();
         } else {
           throw new Error("NOTREADY");
         }
       } catch (e) {
         hardwareReady = false;
-        showBanner("Device Not Connected: UIDAI L1 Scanner not detected on port 11100. Switch to Prototype Mode to test.", "bg-rose-600 text-white");
-        speakOnly("Device not connected. Please connect the biometric scanner or switch to Prototype Mode.");
+        showBanner("Device Not Connected: UIDAI L1 scanner not found on port 11100. Use Prototype Mode.");
       }
     }
 
     function startThumbHold(e) {
       if (e) e.preventDefault();
       if (kioskMode === "user" && !hardwareReady) {
-        showBanner("Cannot start: L1 Biometric Hardware not connected.", "bg-rose-600 text-white");
+        showBanner("L1 Biometric Hardware not connected.");
         return;
       }
       if (isThumbHeld) return;
@@ -780,29 +643,19 @@
       updateBiometricUI(true);
 
       clearInterval(biometricHeartbeatTimer);
-      biometricHeartbeatTimer = setInterval(async () => {
+      biometricHeartbeatTimer = setInterval(() => {
         if (!isThumbHeld) {
           clearInterval(biometricHeartbeatTimer);
           return;
         }
         biometricPulseCount++;
-        document.getElementById("bio-heartbeat-status").textContent = `Verified Pulse #${biometricPulseCount} (Active)`;
-        document.getElementById("bio-heartbeat-status").className = "font-mono text-emerald-400";
-
-        if (kioskMode === "user") {
-          try {
-            const res = await fetch("[https://127.0.0.1:11100](https://127.0.0.1:11100)", { method: "RDSERVICE" });
-            const text = await res.text();
-            if (!text.includes("READY")) abortSession("Hardware scanner disconnected mid-session.");
-          } catch (err) {
-            abortSession("Hardware scanner connection lost.");
-          }
-        }
+        document.getElementById("bio-heartbeat-status").textContent = `Pulse #${biometricPulseCount} (Active)`;
+        document.getElementById("bio-heartbeat-status").style.color = "#34d399";
       }, 1500);
 
       if (state === "IDLE") {
         setKioskState("ASK_NAME");
-        askAndListen("Thumb locked. Please say your registered full name.");
+        speakText("Thumb locked. Say your registered full name, or type it below.");
       }
     }
 
@@ -834,35 +687,25 @@
       const pad = document.getElementById("thumb-pad");
       const badge = document.getElementById("biometric-badge");
       const label = document.getElementById("thumb-label");
-      const beam = document.getElementById("scan-beam");
-      const svg = document.getElementById("thumb-svg");
-
       if (locked) {
-        pad.className = "no-select relative overflow-hidden w-48 h-48 rounded-full border-4 border-emerald-400 bg-emerald-500/15 flex flex-col items-center justify-center transition-all duration-200 shadow-lg shadow-emerald-500/20";
-        badge.textContent = "LOCKED & ACTIVE";
-        badge.className = "px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400";
-        label.textContent = "Thumb Locked (Evaluating)";
-        svg.classList.replace("text-slate-400", "text-emerald-400");
-        beam.classList.remove("hidden");
+        pad.classList.add("locked");
+        badge.textContent = "LOCKED";
+        badge.style.color = "#34d399";
+        label.textContent = "Thumb Locked";
         document.getElementById("bio-heartbeat-status").textContent = "Pulse #1 (Active)";
-        document.getElementById("bio-heartbeat-status").className = "font-mono text-emerald-400";
+        document.getElementById("bio-heartbeat-status").style.color = "#34d399";
       } else {
-        pad.className = "no-select relative overflow-hidden w-48 h-48 rounded-full border-4 border-slate-700 bg-slate-950/90 hover:border-emerald-500/70 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer shadow-inner";
+        pad.classList.remove("locked");
         badge.textContent = "WAITING";
-        badge.className = "px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400";
+        badge.style.color = "#94a3b8";
         label.textContent = "Press & Hold Thumb";
-        svg.classList.replace("text-emerald-400", "text-slate-400");
-        beam.classList.add("hidden");
         document.getElementById("bio-heartbeat-status").textContent = "Idle";
-        document.getElementById("bio-heartbeat-status").className = "font-mono text-slate-500";
+        document.getElementById("bio-heartbeat-status").style.color = "#64748b";
       }
     }
 
     function abortSession(reason) {
-      currentSpeechId++;
       hardStopMic();
-      clearTimeout(speakWatchdogTimer);
-      try { window.speechSynthesis.cancel(); } catch (e) {}
       clearInterval(biometricHeartbeatTimer);
       txData = { matchedUser: null, txType: null, amount: null };
       document.getElementById("sim-hold-toggle").checked = false;
@@ -870,26 +713,27 @@
       isThumbHeld = false;
       updateBiometricUI(false);
       document.getElementById("bio-auth-status").textContent = "Aborted";
-      document.getElementById("bio-auth-status").className = "font-mono text-rose-400";
-      showBanner(reason, "bg-rose-600 text-white");
+      document.getElementById("bio-auth-status").style.color = "#f87171";
+      showBanner(reason);
       setKioskState("IDLE");
-      speakOnly(`${reason} Place your thumb on the scanner to start over.`);
+      speakText(`${reason} Hold your thumb to start again.`);
     }
 
-    function fallbackYes(t) { return /\b(yes|yeah|yep|confirm|correct|right|ok|okay|sure|proceed|true|haan|ha)\b/i.test(t || ""); }
+    function fallbackYes(t) { return /\b(yes|yeah|yep|confirm|correct|right|ok|okay|sure|proceed|haan|ha)\b/i.test(t || ""); }
     function fallbackNo(t) { return /\b(no|nope|wrong|retry|change|cancel|back|incorrect|not|nahi)\b/i.test(t || ""); }
 
     function handleManualInput(val) {
       if (!val || !val.trim()) return;
       hardStopMic();
+      if (!isThumbHeld && state !== "IDLE") {
+        startThumbHold();
+      }
       const raw = val.trim();
       document.getElementById("heard-transcript").textContent = `Input: "${raw}"`;
-
       if (state === "ASK_NAME") {
         applyGeminiIntent({ transcript: raw, intent: "NAME", name: raw, amount: null });
       } else if (state === "ASK_AMOUNT") {
-        const num = extractNumberFromSpeech(raw.toLowerCase());
-        applyGeminiIntent({ transcript: raw, intent: "AMOUNT", name: null, amount: num });
+        applyGeminiIntent({ transcript: raw, intent: "AMOUNT", name: null, amount: extractNumberFromSpeech(raw.toLowerCase()) });
       } else {
         applyGeminiIntent({
           transcript: raw,
@@ -901,7 +745,6 @@
     }
 
     async function applyGeminiIntent(payload) {
-      if (!isThumbHeld) return;
       const transcript = (payload.transcript || "").trim();
       const intent = (payload.intent || "UNKNOWN").toUpperCase();
       const candidateName = (payload.name || transcript).trim();
@@ -914,16 +757,15 @@
             if (res.ok) match = await res.json();
           } catch (e) {}
         }
-
         if (match) {
           txData.matchedUser = match;
           const last4 = match.account.slice(-4);
-          document.getElementById("matched-account-display").textContent = `${match.name} — Acct: ••••••${last4}`;
-          document.getElementById("confirm-name-box").classList.remove("hidden");
+          document.getElementById("matched-account-display").textContent = `${match.name} — Acct ending ${last4}`;
+          document.getElementById("confirm-name-box").style.display = "block";
           setKioskState("VERIFY_NAME");
-          askAndListen(`Found ${match.name}, ending in ${last4.split("").join(" ")}. Say Yes or No.`);
+          speakText(`Found ${match.name}, ending in ${last4.split("").join(" ")}. Say Yes or No.`);
         } else {
-          askAndListen(`I heard ${transcript || "nothing"}. Please say your registered name again.`);
+          speakText(`Heard ${transcript || "nothing"}. Say your registered name again.`);
         }
         return;
       }
@@ -931,21 +773,21 @@
       if (state === "VERIFY_NAME") {
         if (intent === "YES" || fallbackYes(transcript)) confirmMatchedName(true);
         else if (intent === "NO" || fallbackNo(transcript)) confirmMatchedName(false);
-        else askAndListen("Please say Yes or No to confirm your account.");
+        else speakText("Say Yes or No to confirm your account.");
         return;
       }
 
       if (state === "ASK_TX") {
         if (intent === "DEPOSIT" || /\bdeposit\b/i.test(transcript)) selectTransactionType("DEPOSIT");
         else if (intent === "WITHDRAWAL" || /\bwithdraw/i.test(transcript)) selectTransactionType("WITHDRAWAL");
-        else askAndListen("Say Deposit or Withdrawal.");
+        else speakText("Say Deposit or Withdrawal.");
         return;
       }
 
       if (state === "VERIFY_TX") {
         if (intent === "YES" || fallbackYes(transcript)) confirmTransactionType(true);
         else if (intent === "NO" || fallbackNo(transcript)) confirmTransactionType(false);
-        else askAndListen("Say Yes or No to confirm transaction type.");
+        else speakText("Say Yes or No to confirm transaction type.");
         return;
       }
 
@@ -954,47 +796,47 @@
           ? payload.amount
           : extractNumberFromSpeech((transcript || "").toLowerCase());
         if (num && num > 0) selectAmount(num);
-        else askAndListen("Please say the amount in rupees.");
+        else speakText("Say the amount in rupees.");
         return;
       }
 
       if (state === "VERIFY_AMOUNT") {
         if (intent === "YES" || fallbackYes(transcript)) runMidSessionBiometricScan();
         else if (intent === "NO" || fallbackNo(transcript)) retryAmount();
-        else askAndListen("Say Yes to authenticate and print slip, or No to change amount.");
+        else speakText("Say Yes to authenticate and print slip, or No to change amount.");
       }
     }
 
     function confirmMatchedName(ok) {
-      document.getElementById("confirm-name-box").classList.add("hidden");
+      document.getElementById("confirm-name-box").style.display = "none";
       if (ok) {
         setKioskState("ASK_TX");
-        askAndListen("Confirmed. Deposit or Withdrawal?");
+        speakText("Confirmed. Deposit or Withdrawal?");
       } else {
         txData.matchedUser = null;
         setKioskState("ASK_NAME");
-        askAndListen("Okay. Say your registered name again.");
+        speakText("Say your registered name again.");
       }
     }
 
     function selectTransactionType(type) {
       hardStopMic();
       txData.txType = type;
-      document.getElementById("tx-verify-display").textContent = `Selected: ${type} (Say "Yes" or "No")`;
-      document.getElementById("confirm-tx-box").classList.remove("hidden");
+      document.getElementById("tx-verify-display").textContent = `Selected: ${type}`;
+      document.getElementById("confirm-tx-box").style.display = "block";
       setKioskState("VERIFY_TX");
-      askAndListen(`${type} selected. Say Yes or No.`);
+      speakText(`${type} selected. Say Yes or No.`);
     }
 
     function confirmTransactionType(ok) {
-      document.getElementById("confirm-tx-box").classList.add("hidden");
+      document.getElementById("confirm-tx-box").style.display = "none";
       if (ok) {
         setKioskState("ASK_AMOUNT");
-        askAndListen(`How many rupees to ${txData.txType.toLowerCase()}?`);
+        speakText(`How many rupees to ${txData.txType.toLowerCase()}?`);
       } else {
         txData.txType = null;
         setKioskState("ASK_TX");
-        askAndListen("Say Deposit or Withdrawal.");
+        speakText("Say Deposit or Withdrawal.");
       }
     }
 
@@ -1004,16 +846,16 @@
       hardStopMic();
       txData.amount = amt;
       document.getElementById("final-summary-text").textContent = `${txData.txType} of ₹${amt.toLocaleString("en-IN")} — ${txData.matchedUser.name}`;
-      document.getElementById("final-confirm-box").classList.remove("hidden");
+      document.getElementById("final-confirm-box").style.display = "block";
       setKioskState("VERIFY_AMOUNT");
-      askAndListen(`${amt} rupees for ${txData.txType.toLowerCase()}. Say Yes to print slip, or No to change.`);
+      speakText(`${amt} rupees for ${txData.txType.toLowerCase()}. Say Yes to print slip, or No to change.`);
     }
 
     function retryAmount() {
-      document.getElementById("final-confirm-box").classList.add("hidden");
+      document.getElementById("final-confirm-box").style.display = "none";
       txData.amount = null;
       setKioskState("ASK_AMOUNT");
-      askAndListen("Say the amount in rupees again.");
+      speakText("Say the amount in rupees again.");
     }
 
     async function runMidSessionBiometricScan() {
@@ -1021,27 +863,11 @@
         abortSession("Thumb removed during biometric authentication!");
         return;
       }
-
       hardStopMic();
       setKioskState("BIO_SCANNING");
-      document.getElementById("bio-auth-status").textContent = "Scanning Ridge Minutiae...";
-      document.getElementById("bio-auth-status").className = "font-mono text-amber-400";
-      speakOnly("Authenticating thumbprint. Keep holding still.");
-
-      if (kioskMode === "user") {
-        try {
-          const pidOpts = `<PidOptions ver="1.0"><Opts env="P" fCount="1" fType="2" format="0" iCount="0" pCount="0" pidVer="2.0" timeout="10000"/></PidOptions>`;
-          const res = await fetch("[https://127.0.0.1:11100/rd/capture](https://127.0.0.1:11100/rd/capture)", { method: "CAPTURE", body: pidOpts });
-          const xml = await res.text();
-          if (!xml.includes('errCode="0"')) {
-            abortSession("Biometric fingerprint match failed on L1 hardware.");
-            return;
-          }
-        } catch (err) {
-          abortSession("Hardware capture failed during biometric scan.");
-          return;
-        }
-      }
+      document.getElementById("bio-auth-status").textContent = "Scanning...";
+      document.getElementById("bio-auth-status").style.color = "#fbbf24";
+      speakText("Authenticating thumbprint.");
 
       setTimeout(async () => {
         if (!isThumbHeld) {
@@ -1049,14 +875,14 @@
           return;
         }
         document.getElementById("bio-auth-status").textContent = "AUTHENTICATED ✔";
-        document.getElementById("bio-auth-status").className = "font-mono font-bold text-emerald-400";
+        document.getElementById("bio-auth-status").style.color = "#34d399";
         await generateFinalSlip();
-      }, 1500);
+      }, 1200);
     }
 
     async function generateFinalSlip() {
       setKioskState("DONE");
-      document.getElementById("step-workspace").classList.add("hidden");
+      document.getElementById("step-workspace").style.display = "none";
 
       let refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
       let timestamp = new Date().toLocaleString("en-IN");
@@ -1071,7 +897,7 @@
             account: txData.matchedUser.account,
             tx_type: txData.txType,
             amount: txData.amount,
-            biometric_pulses: biometricPulseCount
+            biometric_pulses: biometricPulseCount || 1
           })
         });
         if (res.ok) {
@@ -1083,7 +909,7 @@
       } catch (e) {}
 
       if (!hash) {
-        hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount}:${Date.now()}`);
+        hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${Date.now()}`);
       }
 
       document.getElementById("slip-tx-type").textContent = `${txData.txType} SLIP`;
@@ -1093,15 +919,12 @@
       document.getElementById("slip-amount").textContent = `₹ ${txData.amount.toLocaleString("en-IN")}.00`;
       document.getElementById("slip-ref").textContent = refId;
       document.getElementById("slip-hash").textContent = `eSign Hash: ${hash}`;
-
-      document.getElementById("printable-slip").classList.remove("hidden");
-      speakOnly("Slip ready. You may release your thumb now.");
+      document.getElementById("printable-slip").style.display = "block";
+      speakText("Slip ready. You may release your thumb now.");
     }
 
     function resetAfterCompletion() {
-      currentSpeechId++;
       hardStopMic();
-      clearTimeout(speakWatchdogTimer);
       clearInterval(biometricHeartbeatTimer);
       txData = { matchedUser: null, txType: null, amount: null };
       document.getElementById("sim-hold-toggle").checked = false;
@@ -1109,11 +932,11 @@
       isThumbHeld = false;
       updateBiometricUI(false);
       document.getElementById("bio-auth-status").textContent = "Pending";
-      document.getElementById("bio-auth-status").className = "font-mono text-slate-500";
-      document.getElementById("printable-slip").classList.add("hidden");
-      document.getElementById("step-workspace").classList.remove("hidden");
+      document.getElementById("bio-auth-status").style.color = "#64748b";
+      document.getElementById("printable-slip").style.display = "none";
+      document.getElementById("step-workspace").style.display = "block";
       setKioskState("IDLE");
-      speakOnly("Ready for next user. Place and hold your thumb on the scanner.");
+      speakText("Ready for next user.");
     }
 
     function setKioskState(newState) {
@@ -1123,26 +946,12 @@
         ASK_AMOUNT: 4, VERIFY_AMOUNT: 4, BIO_SCANNING: 4, DONE: 4
       };
       const activeNum = stepMap[newState] || 1;
-
-      [1, 2, 3, 4].forEach(n => {
+      [1, 2, 3, 4].forEach((n) => {
         const el = document.getElementById(`prog-${n}`);
-        const badge = el.querySelector("span:first-child");
-        if (n < activeNum || newState === "DONE") {
-          el.className = "flex items-center gap-2.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400";
-          badge.className = "w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-bold text-xs flex items-center justify-center shrink-0";
-          badge.textContent = "✓";
-        } else if (n === activeNum) {
-          el.className = "flex items-center gap-2.5 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/50 text-emerald-300";
-          badge.className = "w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-bold text-xs flex items-center justify-center shrink-0";
-          badge.textContent = n;
-        } else {
-          el.className = "flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-500";
-          badge.className = "w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center shrink-0";
-          badge.textContent = n;
-        }
+        el.className = n <= activeNum ? "step-pill active" : "step-pill";
       });
 
-      const stepLabels = {
+      const labels = {
         IDLE: "Step 1 / 4 — Waiting for Thumb",
         ASK_NAME: "Step 2 / 4 — Customer Name",
         VERIFY_NAME: "Step 2 / 4 — Verify Account",
@@ -1153,21 +962,21 @@
         BIO_SCANNING: "Biometric Scan in Progress...",
         DONE: "Completed — Slip Generated"
       };
-      document.getElementById("step-counter").textContent = stepLabels[newState] || newState;
+      document.getElementById("step-counter").textContent = labels[newState] || newState;
 
-      document.getElementById("ui-step-1").classList.toggle("hidden", newState !== "IDLE");
-      document.getElementById("ui-step-2").classList.toggle("hidden", newState !== "ASK_NAME" && newState !== "VERIFY_NAME");
-      document.getElementById("ui-step-3").classList.toggle("hidden", newState !== "ASK_TX" && newState !== "VERIFY_TX");
-      document.getElementById("ui-step-4").classList.toggle("hidden", newState !== "ASK_AMOUNT" && newState !== "VERIFY_AMOUNT" && newState !== "BIO_SCANNING");
+      document.getElementById("ui-step-1").style.display = newState === "IDLE" ? "block" : "none";
+      document.getElementById("ui-step-2").style.display = (newState === "ASK_NAME" || newState === "VERIFY_NAME") ? "block" : "none";
+      document.getElementById("ui-step-3").style.display = (newState === "ASK_TX" || newState === "VERIFY_TX") ? "block" : "none";
+      document.getElementById("ui-step-4").style.display = (newState === "ASK_AMOUNT" || newState === "VERIFY_AMOUNT" || newState === "BIO_SCANNING") ? "block" : "none";
 
-      if (newState === "ASK_NAME") document.getElementById("confirm-name-box").classList.add("hidden");
-      if (newState === "ASK_TX") document.getElementById("confirm-tx-box").classList.add("hidden");
-      if (newState === "ASK_AMOUNT") document.getElementById("final-confirm-box").classList.add("hidden");
+      if (newState === "ASK_NAME") document.getElementById("confirm-name-box").style.display = "none";
+      if (newState === "ASK_TX") document.getElementById("confirm-tx-box").style.display = "none";
+      if (newState === "ASK_AMOUNT") document.getElementById("final-confirm-box").style.display = "none";
       hideBanner();
     }
 
     function toggleAccountModal(show) {
-      document.getElementById("account-modal").classList.toggle("hidden", !show);
+      document.getElementById("account-modal").style.display = show ? "flex" : "none";
       if (show) renderAccountList();
     }
 
@@ -1178,10 +987,7 @@
     async function addNewAccount() {
       const name = document.getElementById("new-acc-name").value.trim();
       const account = document.getElementById("new-acc-num").value.trim();
-      if (!name || account.length < 6) {
-        alert("Please enter a valid full name and account number.");
-        return;
-      }
+      if (!name || account.length < 6) return;
       accountsDB.push({ name, account });
       localStorage.setItem("kiosk_accounts_db", JSON.stringify(accountsDB));
       try {
@@ -1198,22 +1004,22 @@
 
     function renderAccountList() {
       document.getElementById("account-count").textContent = accountsDB.length;
-      document.getElementById("registered-accounts-list").innerHTML = accountsDB.map(a => `
-        <li class="flex justify-between bg-slate-950 px-3.5 py-2.5 rounded-xl border border-slate-800">
-          <span class="font-medium text-slate-200">${a.name}</span>
-          <span class="font-mono text-emerald-400">${a.account}</span>
+      document.getElementById("registered-accounts-list").innerHTML = accountsDB.map((a) => `
+        <li style="display:flex;justify-content:space-between;background:#060a14;padding:8px 10px;border-radius:8px;border:1px solid #1e293b;">
+          <span>${a.name}</span>
+          <span class="mono" style="color:#34d399;">${a.account}</span>
         </li>
       `).join("");
     }
 
-    function showBanner(msg, classes) {
+    function showBanner(msg) {
       const el = document.getElementById("alert-banner");
       el.textContent = msg;
-      el.className = `px-6 py-3 text-center font-semibold text-xs tracking-wide no-print ${classes}`;
+      el.style.display = "block";
     }
 
     function hideBanner() {
-      document.getElementById("alert-banner").classList.add("hidden");
+      document.getElementById("alert-banner").style.display = "none";
     }
 
     function extractNumberFromSpeech(text) {
@@ -1224,8 +1030,8 @@
         "hundred": 100, "five hundred": 500, "thousand": 1000,
         "two thousand": 2000, "five thousand": 5000, "ten thousand": 10000
       };
-      for (const [key, val] of Object.entries(words)) {
-        if (cleaned.includes(key)) return val;
+      for (const [k, v] of Object.entries(words)) {
+        if (cleaned.includes(k)) return v;
       }
       return null;
     }
@@ -1233,7 +1039,7 @@
     async function sha256Hex(message) {
       const msgBuffer = new TextEncoder().encode(message);
       const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
-      return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+      return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
     }
   </script>
 </body>
