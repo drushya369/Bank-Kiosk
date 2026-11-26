@@ -1,302 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VaaniBank — Voice-Assisted Biometric Banking Kiosk</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @keyframes pulseRing {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 18px rgba(16, 185, 129, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    @keyframes scanLine {
-      0%, 100% { top: 15%; opacity: 0.3; }
-      50% { top: 80%; opacity: 1; }
-    }
-    .listening-pulse { animation: pulseRing 1.5s infinite; }
-    .scanner-beam { animation: scanLine 1.8s ease-in-out infinite; }
-    .no-select { user-select: none; -webkit-user-select: none; }
-
-    @media print {
-      body * { visibility: hidden; }
-      #printable-slip, #printable-slip * { visibility: visible; }
-      #printable-slip {
-        position: fixed; left: 0; top: 0; width: 100%;
-        border: 2px solid #000; box-shadow: none;
-      }
-      .no-print { display: none !important; }
-    }
-  </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
-
-  <!-- Initial Activation Overlay -->
-  <div id="activation-overlay" class="fixed inset-0 bg-slate-950/95 z-50 flex flex-col items-center justify-center p-6 text-center">
-    <div class="max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl">
-      <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🎙️</div>
-      <h1 class="text-2xl font-bold mb-2">VaaniBank Biometric Kiosk</h1>
-      <p class="text-slate-400 text-sm mb-6">
-        Hands-free half-duplex voice banking with continuous thumbprint security &amp; cryptographic e-Sign slip generation.
-      </p>
-      <button onclick="activateKiosk()" class="w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-lg transition shadow-lg">
-        Activate Kiosk
-      </button>
-    </div>
-  </div>
-
-  <!-- Top Navigation Header -->
-  <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 no-print">
-    <div class="flex items-center gap-3">
-      <span class="text-2xl">🏦</span>
-      <div>
-        <h1 class="font-bold text-lg leading-tight">VaaniBank Biometric Kiosk</h1>
-        <p class="text-xs text-slate-400">Half-Duplex Voice &amp; Continuous Biometric Terminal</p>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-3">
-      <button onclick="toggleAccountModal(true)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium flex items-center gap-2 transition">
-        <span>➕</span> Register Account (<span id="account-count">3</span>)
-      </button>
-
-      <div class="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
-        <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition">
-          Prototype Mode
-        </button>
-        <button id="btn-user-mode" onclick="setKioskMode('user')" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition">
-          User Mode (L1 Hardware)
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <div id="alert-banner" class="hidden px-6 py-3 text-center font-semibold text-sm no-print"></div>
-
-  <!-- Main Workspace -->
-  <main class="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-    <!-- Left Column: Biometric Thumb Sensor -->
-    <section class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between no-print">
-      <div>
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="font-bold text-base text-slate-200">1. Biometric Thumb Sensor</h2>
-          <span id="biometric-badge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">DISCONNECTED</span>
-        </div>
-        <p class="text-xs text-slate-400 mb-5">
-          Keep your thumb placed throughout the transaction. Releasing early immediately aborts and wipes the session.
-        </p>
-
-        <div class="flex flex-col items-center justify-center my-3 relative">
-          <button
-            id="thumb-pad"
-            onmousedown="startThumbHold()"
-            ontouchstart="startThumbHold(event)"
-            onmouseup="releaseThumbHold()"
-            onmouseleave="releaseThumbHold()"
-            ontouchend="releaseThumbHold()"
-            class="no-select relative overflow-hidden w-44 h-44 rounded-full border-4 border-slate-700 bg-slate-800/80 hover:border-emerald-500/60 flex flex-col items-center justify-center transition-all cursor-pointer shadow-inner">
-            <div id="scan-beam" class="hidden scanner-beam absolute left-3 right-3 h-0.5 bg-emerald-400 shadow-[0_0_8px_#34d399]"></div>
-            <span class="text-5xl mb-2">👆</span>
-            <span id="thumb-label" class="text-xs font-bold uppercase tracking-wider text-slate-300 text-center px-3">
-              Press &amp; Hold Thumb
-            </span>
-          </button>
-        </div>
-
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mt-4 text-xs space-y-1.5">
-          <div class="flex justify-between">
-            <span class="text-slate-400">Continuous Contact Check:</span>
-            <span id="bio-heartbeat-status" class="font-mono text-slate-500">Idle</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-slate-400">Mid-Session Auth Scan:</span>
-            <span id="bio-auth-status" class="font-mono text-slate-500">Pending</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="space-y-3 pt-4 border-t border-slate-800 mt-4">
-        <label class="flex items-center justify-between bg-slate-800/60 px-4 py-3 rounded-xl cursor-pointer">
-          <div>
-            <span class="text-xs font-bold text-slate-200 block">Lock Thumb Contact (Demo Hold)</span>
-            <span class="text-[11px] text-slate-400">Simulates continuous thumb impression; uncheck to abort</span>
-          </div>
-          <input id="sim-hold-toggle" type="checkbox" onchange="toggleSimulatedHold(this.checked)" class="w-5 h-5 accent-emerald-500 cursor-pointer" />
-        </label>
-
-        <div class="flex items-center justify-between bg-slate-950 px-4 py-3 rounded-xl border border-slate-800">
-          <div class="flex items-center gap-2.5">
-            <span id="mic-dot" class="w-3 h-3 rounded-full bg-slate-600"></span>
-            <span id="mic-status-text" class="text-xs font-medium text-slate-400">Mic OFF</span>
-          </div>
-          <button onclick="manualMicTrigger()" class="text-xs text-emerald-400 hover:underline font-semibold">
-            🎤 Speak Now
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Right Column: Half-Duplex Voice Assistant & Printable Slip -->
-    <section class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
-      <div>
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 mb-6 no-print">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs uppercase tracking-wider font-bold text-emerald-400" id="step-counter">Step 1 / 4 — Waiting for Thumb</span>
-            <button onclick="repeatCurrentQuestion()" class="text-xs text-slate-400 hover:text-white underline">🔊 Repeat Question</button>
-          </div>
-          <p id="kiosk-prompt-text" class="text-lg font-medium text-white leading-relaxed">
-            Click "Activate Kiosk" to start.
-          </p>
-          <p id="heard-transcript" class="text-xs text-emerald-300 mt-3 italic min-h-[18px]"></p>
-        </div>
-
-        <div id="step-workspace" class="space-y-4 no-print">
-          <div id="ui-step-1" class="text-center py-8 text-slate-400 text-sm">
-            Place and hold your thumb on the scanner pad (or switch ON <strong>Lock Thumb Contact</strong>) to begin.
-          </div>
-
-          <div id="ui-step-2" class="hidden space-y-4">
-            <label class="block text-sm font-semibold text-slate-300">Customer Name (Voice or Manual Fallback):</label>
-            <div class="flex gap-2">
-              <input id="manual-name-input" type="text" placeholder="e.g., Drushya S N or Ramesh Kumar" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" />
-              <button onclick="handleManualInput(document.getElementById('manual-name-input').value)" class="px-5 py-3 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400">
-                Submit
-              </button>
-            </div>
-            <div id="confirm-name-box" class="hidden bg-slate-800/80 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between">
-              <div>
-                <p class="text-xs text-slate-400">Verify Account (Say "Yes" or "No")</p>
-                <p id="matched-account-display" class="font-bold text-base text-white"></p>
-              </div>
-              <div class="flex gap-2">
-                <button onclick="confirmMatchedName(true)" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-lg text-sm">Yes</button>
-                <button onclick="confirmMatchedName(false)" class="px-4 py-2 bg-slate-700 text-white font-bold rounded-lg text-sm">No</button>
-              </div>
-            </div>
-          </div>
-
-          <div id="ui-step-3" class="hidden space-y-4">
-            <p class="text-sm font-semibold text-slate-300">Transaction Type (Say "Deposit" or "Withdrawal"):</p>
-            <div class="grid grid-cols-2 gap-4">
-              <button onclick="selectTransactionType('DEPOSIT')" class="py-6 bg-emerald-600/20 hover:bg-emerald-600/30 border-2 border-emerald-500 rounded-xl font-bold text-lg text-emerald-300">
-                ⬇️ DEPOSIT
-              </button>
-              <button onclick="selectTransactionType('WITHDRAWAL')" class="py-6 bg-amber-600/20 hover:bg-amber-600/30 border-2 border-amber-500 rounded-xl font-bold text-lg text-amber-300">
-                ⬆️ WITHDRAWAL
-              </button>
-            </div>
-            <div id="confirm-tx-box" class="hidden bg-slate-800/80 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between">
-              <p id="tx-verify-display" class="font-bold text-sm text-white"></p>
-              <div class="flex gap-2">
-                <button onclick="confirmTransactionType(true)" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-lg text-sm">Yes</button>
-                <button onclick="confirmTransactionType(false)" class="px-4 py-2 bg-slate-700 text-white font-bold rounded-lg text-sm">No</button>
-              </div>
-            </div>
-          </div>
-
-          <div id="ui-step-4" class="hidden space-y-4">
-            <label class="block text-sm font-semibold text-slate-300">Amount in Rupees (₹):</label>
-            <div class="flex gap-2">
-              <input id="manual-amount-input" type="number" placeholder="e.g., 5000" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white text-lg focus:outline-none focus:border-emerald-500" />
-              <button onclick="handleManualInput(document.getElementById('manual-amount-input').value)" class="px-5 py-3 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400">
-                Submit
-              </button>
-            </div>
-            <div id="final-confirm-box" class="hidden bg-slate-800/80 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between">
-              <p id="final-summary-text" class="text-sm font-semibold text-white"></p>
-              <div class="flex gap-2">
-                <button onclick="runMidSessionBiometricScan()" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-lg text-sm">Yes, Authenticate &amp; Print</button>
-                <button onclick="retryAmount()" class="px-4 py-2 bg-slate-700 text-white font-bold rounded-lg text-sm">No</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 5: Printable Slip -->
-        <div id="printable-slip" class="hidden bg-white text-slate-900 rounded-xl p-6 shadow-xl border-2 border-slate-300 mt-4">
-          <div class="flex justify-between items-start border-b-2 border-dashed border-slate-400 pb-4 mb-4">
-            <div>
-              <h3 class="font-extrabold text-xl tracking-tight">VAANIBANK INDIA LTD.</h3>
-              <p class="text-xs text-slate-600">Self-Service Voice &amp; Biometric Kiosk Slip</p>
-            </div>
-            <div class="text-right text-xs">
-              <p class="font-bold" id="slip-tx-type">DEPOSIT SLIP</p>
-              <p class="text-slate-600" id="slip-timestamp"></p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-y-3 text-sm mb-5">
-            <div class="text-slate-500">Account Holder:</div>
-            <div class="font-bold text-right" id="slip-name"></div>
-
-            <div class="text-slate-500">Account Number:</div>
-            <div class="font-mono font-bold text-right" id="slip-account"></div>
-
-            <div class="text-slate-500">Transaction Amount:</div>
-            <div class="font-extrabold text-lg text-right text-emerald-700" id="slip-amount"></div>
-
-            <div class="text-slate-500">Reference ID:</div>
-            <div class="font-mono text-xs text-right" id="slip-ref"></div>
-          </div>
-
-          <div class="bg-slate-100 border border-slate-400 rounded-lg p-3 text-xs font-mono">
-            <div class="flex items-center justify-between font-bold text-emerald-800 mb-1">
-              <span>✔ CRYPTOGRAPHIC BIOMETRIC e-SIGN VERIFIED</span>
-              <span>L1 AUTH</span>
-            </div>
-            <p class="text-[11px] text-slate-600 break-all" id="slip-hash"></p>
-            <p class="text-[10px] text-slate-500 mt-1">
-              Authenticated via continuous thumb-hold &amp; mid-session biometric scan. Cursive signature not required.
-            </p>
-          </div>
-
-          <div class="mt-5 flex gap-3 no-print">
-            <button onclick="window.print()" class="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800">
-              🖨️ Print Slip
-            </button>
-            <button onclick="resetAfterCompletion()" class="px-5 py-3 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400">
-              Done / New User
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Register Accounts Modal -->
-  <div id="account-modal" class="hidden fixed inset-0 bg-slate-950/85 z-40 flex items-center justify-center p-4 no-print">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="font-bold text-lg">Register Demo Bank Account</h3>
-        <button onclick="toggleAccountModal(false)" class="text-slate-400 hover:text-white text-xl">&times;</button>
-      </div>
-      <div class="space-y-3 mb-5">
-        <div>
-          <label class="text-xs text-slate-400 block mb-1">Customer Full Name (Spoken Name)</label>
-          <input id="new-acc-name" type="text" placeholder="e.g., Ananya Sharma" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
-        </div>
-        <div>
-          <label class="text-xs text-slate-400 block mb-1">10-Digit Account Number</label>
-          <div class="flex gap-2">
-            <input id="new-acc-num" type="text" placeholder="10 digits" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono" />
-            <button onclick="generateRandomAccountNum()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold">Auto</button>
-          </div>
-        </div>
-        <button onclick="addNewAccount()" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-sm">
-          Save Account to Kiosk
-        </button>
-      </div>
-      <div class="border-t border-slate-800 pt-3">
-        <p class="text-xs font-bold text-slate-400 mb-2">Registered Accounts:</p>
-        <ul id="registered-accounts-list" class="max-h-40 overflow-y-auto space-y-1.5 text-xs"></ul>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // Optional: Set your deployed FastAPI backend URL here (leave empty for standalone Static Site mode)
+<script>
     const BACKEND_API_URL = "";
 
     const DEFAULT_ACCOUNTS = [
@@ -318,7 +20,7 @@
     let currentPromptText = "";
 
     // ==========================================
-    // STRICT HALF-DUPLEX VOICE ENGINE
+    // CROWD-RESILIENT HALF-DUPLEX VOICE ENGINE
     // ==========================================
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
@@ -327,14 +29,87 @@
     let isSpeakingNow = false;
     let speechPollInterval = null;
     let currentSpeechId = 0;
+    let hardwareMicStream = null;
     window.currentUtterance = null;
+
+    // Engages browser WebRTC Hardware Echo Cancellation & Noise Suppression on the laptop mic
+    async function lockHardwareNoiseCancellation() {
+      if (hardwareMicStream || !navigator.mediaDevices) return;
+      try {
+        hardwareMicStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false
+          }
+        });
+      } catch (e) {}
+    }
+
+    // Filters out self-echo fragments from kiosk prompts
+    function isSelfEcho(transcript) {
+      const lower = transcript.toLowerCase();
+      const kioskPhrases = [
+        "please say your", "thumb contact locked", "account ending in",
+        "say yes to verify", "would you like to make", "how many rupees",
+        "scanning your thumbprint", "welcome to vaanibank"
+      ];
+      return kioskPhrases.some(phrase => lower.includes(phrase));
+    }
+
+    // Phonetic / Dice-Coefficient Fuzzy Matcher (handles Indian names & crowd noise)
+    function findBestAccountMatch(spokenQuery) {
+      const cleanQuery = spokenQuery.toLowerCase().replace(/[^a-z\s]/g, "").trim();
+      if (!cleanQuery) return null;
+
+      let bestMatch = null;
+      let bestScore = 0;
+
+      for (const acc of accountsDB) {
+        const target = acc.name.toLowerCase().replace(/[^a-z\s]/g, "").trim();
+        if (target === cleanQuery || target.includes(cleanQuery) || cleanQuery.includes(target)) {
+          return acc;
+        }
+        // Compare first name and full name using character bigrams
+        const targetFirst = target.split(" ")[0];
+        const queryFirst = cleanQuery.split(" ")[0];
+        const fullScore = bigramSimilarity(cleanQuery, target);
+        const firstScore = bigramSimilarity(queryFirst, targetFirst);
+        const score = Math.max(fullScore, firstScore);
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = acc;
+        }
+      }
+      return bestScore >= 0.55 ? bestMatch : null;
+    }
+
+    function bigramSimilarity(str1, str2) {
+      if (str1.length < 2 || str2.length < 2) return str1 === str2 ? 1 : 0;
+      const bigrams1 = new Map();
+      for (let i = 0; i < str1.length - 1; i++) {
+        const bg = str1.substring(i, i + 2);
+        bigrams1.set(bg, (bigrams1.get(bg) || 0) + 1);
+      }
+      let intersection = 0;
+      for (let i = 0; i < str2.length - 1; i++) {
+        const bg = str2.substring(i, i + 2);
+        const count = bigrams1.get(bg) || 0;
+        if (count > 0) {
+          bigrams1.set(bg, count - 1);
+          intersection++;
+        }
+      }
+      return (2.0 * intersection) / (str1.length + str2.length - 2);
+    }
 
     function createFreshRecognizer() {
       if (!SpeechRecognition) return null;
       const rec = new SpeechRecognition();
       rec.continuous = false;
       rec.interimResults = false;
-      rec.maxAlternatives = 1;
+      rec.maxAlternatives = 3; // Evaluates top 3 phonetic guesses from Chrome
       rec.lang = "en-IN";
 
       rec.onstart = () => {
@@ -347,16 +122,24 @@
       };
 
       rec.onresult = (event) => {
-        const spoken = event.results[0][0].transcript.trim();
+        const alternatives = Array.from(event.results[0]).map(r => r.transcript.trim());
+        const primarySpoken = alternatives[0] || "";
         hardStopMic();
-        if (!spoken) return;
 
-        document.getElementById("heard-transcript").textContent = `Heard: "${spoken}"`;
+        if (!primarySpoken || isSelfEcho(primarySpoken)) {
+          if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
+            awaitingUserTurn = true;
+            setTimeout(() => hardStartMic(), 300);
+          }
+          return;
+        }
+
+        document.getElementById("heard-transcript").textContent = `Heard: "${primarySpoken}"`;
         updateMicUI("PROCESSING");
 
         setTimeout(() => {
-          processStepInput(spoken);
-        }, 350);
+          processStepInput(primarySpoken, alternatives);
+        }, 300);
       };
 
       rec.onerror = (event) => {
@@ -367,7 +150,7 @@
           showBanner("Microphone blocked. Allow Microphone in address bar site settings.", "bg-rose-600 text-white");
         } else if (event.error === "no-speech" && awaitingUserTurn && !isSpeakingNow && !window.speechSynthesis.speaking && isThumbHeld) {
           updateMicUI("OFF");
-          setTimeout(() => hardStartMic(), 300);
+          setTimeout(() => hardStartMic(), 250);
         } else {
           updateMicUI("OFF");
         }
@@ -376,7 +159,7 @@
       rec.onend = () => {
         micHardwareOn = false;
         if (awaitingUserTurn && !isSpeakingNow && !window.speechSynthesis.speaking && isThumbHeld) {
-          setTimeout(() => hardStartMic(), 300);
+          setTimeout(() => hardStartMic(), 250);
         } else {
           updateMicUI((isSpeakingNow || window.speechSynthesis.speaking) ? "SPEAKING" : "OFF");
         }
@@ -427,7 +210,7 @@
 
         const utter = new SpeechSynthesisUtterance(text);
         utter.lang = "en-IN";
-        utter.rate = 0.95;
+        utter.rate = 0.96;
         window.currentUtterance = utter;
 
         let hasStarted = false;
@@ -474,7 +257,7 @@
 
         const utter = new SpeechSynthesisUtterance(text);
         utter.lang = "en-IN";
-        utter.rate = 0.95;
+        utter.rate = 0.96;
         window.currentUtterance = utter;
 
         let hasStarted = false;
@@ -560,12 +343,10 @@
       }
     }
 
-    // ==========================================
-    // ACTIVATION & HYBRID L1 HARDWARE MODE
-    // ==========================================
-    function activateKiosk() {
+    async function activateKiosk() {
       document.getElementById("activation-overlay").classList.add("hidden");
       renderAccountList();
+      await lockHardwareNoiseCancellation();
       speakOnly("Welcome to VaaniBank Kiosk. Please place and hold your thumb on the scanner to begin.");
     }
 
@@ -607,9 +388,6 @@
       }
     }
 
-    // ==========================================
-    // CONTINUOUS BIOMETRIC EVALUATION & DEAD-MAN'S SWITCH
-    // ==========================================
     function startThumbHold(e) {
       if (e) e.preventDefault();
       if (kioskMode === "user" && !hardwareReady) {
@@ -719,9 +497,6 @@
       speakOnly(`${reason} Place your thumb on the scanner to start over.`);
     }
 
-    // ==========================================
-    // STRICT STEP-BY-STEP VERIFICATION ROUTER
-    // ==========================================
     function isYes(text) {
       return /\b(yes|yeah|yep|confirm|correct|right|ok|okay|sure|proceed|true)\b/i.test(text);
     }
@@ -732,28 +507,19 @@
     function handleManualInput(val) {
       if (!val || !val.trim()) return;
       hardStopMic();
-      processStepInput(val.trim());
+      processStepInput(val.trim(), [val.trim()]);
     }
 
-    async function processStepInput(spokenText) {
+    async function processStepInput(spokenText, alternatives = [spokenText]) {
       if (!isThumbHeld) return;
       const clean = spokenText.trim();
       const lower = clean.toLowerCase();
 
       if (state === "ASK_NAME") {
         let match = null;
-        if (BACKEND_API_URL) {
-          try {
-            const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(clean)}`);
-            if (res.ok) match = await res.json();
-          } catch (e) {}
-        }
-        if (!match) {
-          match = accountsDB.find(acc =>
-            acc.name.toLowerCase() === lower ||
-            acc.name.toLowerCase().includes(lower) ||
-            lower.includes(acc.name.toLowerCase())
-          );
+        for (const alt of alternatives) {
+          match = findBestAccountMatch(alt);
+          if (match) break;
         }
 
         if (match) {
@@ -770,9 +536,9 @@
       }
 
       if (state === "VERIFY_NAME") {
-        if (isYes(lower)) {
+        if (alternatives.some(a => isYes(a))) {
           confirmMatchedName(true);
-        } else if (isNo(lower)) {
+        } else if (alternatives.some(a => isNo(a))) {
           confirmMatchedName(false);
         } else {
           askAndListen(`Please say Yes to verify ${txData.matchedUser.name}, or say No to re-enter your name.`);
@@ -781,9 +547,9 @@
       }
 
       if (state === "ASK_TX") {
-        if (lower.includes("deposit")) {
+        if (alternatives.some(a => a.toLowerCase().includes("deposit"))) {
           selectTransactionType("DEPOSIT");
-        } else if (lower.includes("withdraw")) {
+        } else if (alternatives.some(a => a.toLowerCase().includes("withdraw"))) {
           selectTransactionType("WITHDRAWAL");
         } else {
           askAndListen("Please say either Deposit or Withdrawal.");
@@ -792,9 +558,9 @@
       }
 
       if (state === "VERIFY_TX") {
-        if (isYes(lower)) {
+        if (alternatives.some(a => isYes(a))) {
           confirmTransactionType(true);
-        } else if (isNo(lower)) {
+        } else if (alternatives.some(a => isNo(a))) {
           confirmTransactionType(false);
         } else {
           askAndListen(`You chose ${txData.txType}. Say Yes to verify, or No to change.`);
@@ -803,7 +569,11 @@
       }
 
       if (state === "ASK_AMOUNT") {
-        const num = extractNumberFromSpeech(lower);
+        let num = null;
+        for (const alt of alternatives) {
+          num = extractNumberFromSpeech(alt.toLowerCase());
+          if (num && num > 0) break;
+        }
         if (num && num > 0) {
           selectAmount(num);
         } else {
@@ -813,9 +583,9 @@
       }
 
       if (state === "VERIFY_AMOUNT") {
-        if (isYes(lower)) {
+        if (alternatives.some(a => isYes(a))) {
           runMidSessionBiometricScan();
-        } else if (isNo(lower)) {
+        } else if (alternatives.some(a => isNo(a))) {
           retryAmount();
         } else {
           askAndListen(`Say Yes to authenticate your thumbprint and print the ${txData.txType} slip for ${txData.amount} rupees, or say No to change the amount.`);
@@ -918,35 +688,9 @@
       setKioskState("DONE");
       document.getElementById("step-workspace").classList.add("hidden");
 
-      let refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      let timestamp = new Date().toLocaleString("en-IN");
-      let hash = "";
-
-      if (BACKEND_API_URL) {
-        try {
-          const res = await fetch(`${BACKEND_API_URL}/api/generate-slip`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: txData.matchedUser.name,
-              account: txData.matchedUser.account,
-              tx_type: txData.txType,
-              amount: txData.amount,
-              biometric_pulses: biometricPulseCount
-            })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            refId = data.reference_id;
-            timestamp = data.timestamp;
-            hash = data.esign_hash;
-          }
-        } catch (e) {}
-      }
-
-      if (!hash) {
-        hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount}:${Date.now()}`);
-      }
+      const refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const timestamp = new Date().toLocaleString("en-IN");
+      const hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount}:${Date.now()}`);
 
       document.getElementById("slip-tx-type").textContent = `${txData.txType} SLIP`;
       document.getElementById("slip-timestamp").textContent = timestamp;
@@ -1013,7 +757,7 @@
       document.getElementById("new-acc-num").value = Math.floor(1000000000 + Math.random() * 9000000000).toString();
     }
 
-    async function addNewAccount() {
+    function addNewAccount() {
       const name = document.getElementById("new-acc-name").value.trim();
       const account = document.getElementById("new-acc-num").value.trim();
       if (!name || account.length < 6) {
@@ -1022,15 +766,6 @@
       }
       accountsDB.push({ name, account });
       localStorage.setItem("kiosk_accounts_db", JSON.stringify(accountsDB));
-      if (BACKEND_API_URL) {
-        try {
-          await fetch(`${BACKEND_API_URL}/api/accounts`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, account })
-          });
-        } catch (e) {}
-      }
       document.getElementById("new-acc-name").value = "";
       document.getElementById("new-acc-num").value = "";
       renderAccountList();
@@ -1076,5 +811,3 @@
       return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
     }
   </script>
-</body>
-</html>
