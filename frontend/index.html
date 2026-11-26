@@ -45,13 +45,13 @@
       </div>
       <h1 class="text-2xl font-extrabold tracking-tight text-white mb-2">VaaniBank Kiosk</h1>
       <p class="text-slate-400 text-sm leading-relaxed mb-7">
-        Accessible hands-free voice banking with continuous biometric thumb-lock security and cryptographic e-Sign slip generation.
+        Hands-free Gemini AI voice banking with continuous biometric thumb-lock security and cryptographic e-Sign slip generation.
       </p>
       <button onclick="activateKiosk()" class="w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 font-bold rounded-xl text-base transition shadow-lg shadow-emerald-500/20">
         Start Kiosk Session
       </button>
       <p class="text-[11px] text-slate-500 mt-4">
-        Hardware echo cancellation &amp; turn-locked voice control enabled.
+        Powered by Gemini Audio Transcription &amp; Strict Half-Duplex Turn Lock.
       </p>
     </div>
   </div>
@@ -65,7 +65,7 @@
         </div>
         <div>
           <h1 class="font-extrabold text-lg tracking-tight text-white leading-none">VaaniBank</h1>
-          <p class="text-xs text-slate-400 mt-0.5">Voice-Assisted Biometric Banking Terminal</p>
+          <p class="text-xs text-slate-400 mt-0.5">AI Voice-Assisted Biometric Banking Terminal</p>
         </div>
       </div>
 
@@ -125,7 +125,6 @@
           Maintain continuous thumb contact until your slip is generated. Lifting early immediately terminates the session for security.
         </p>
 
-        <!-- Interactive Thumb Pad -->
         <div class="flex flex-col items-center justify-center my-4">
           <button
             id="thumb-pad"
@@ -145,7 +144,6 @@
           </button>
         </div>
 
-        <!-- Biometric Telemetry -->
         <div class="bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 mt-5 text-xs space-y-2">
           <div class="flex justify-between items-center">
             <span class="text-slate-400">Continuous Heartbeat</span>
@@ -158,7 +156,6 @@
         </div>
       </div>
 
-      <!-- Demo Lock & Live Mic Status -->
       <div class="space-y-3 pt-5 border-t border-slate-800 mt-5">
         <label class="flex items-center justify-between bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/60 px-4 py-3 rounded-2xl cursor-pointer transition">
           <div>
@@ -183,7 +180,6 @@
     <!-- Right Column: Half-Duplex Voice Assistant & Printable Slip -->
     <section class="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
       <div>
-        <!-- Kiosk Spoken Prompt Card -->
         <div class="bg-gradient-to-br from-slate-950 to-slate-900 border border-slate-800 rounded-2xl p-6 mb-6 no-print">
           <div class="flex items-center justify-between mb-3">
             <span class="text-[11px] uppercase tracking-widest font-bold text-emerald-400" id="step-counter">Step 1 / 4 — Waiting for Thumb</span>
@@ -197,17 +193,14 @@
           <p id="heard-transcript" class="text-xs text-emerald-300/90 mt-3 font-medium min-h-[18px]"></p>
         </div>
 
-        <!-- Step Interaction Panels -->
         <div id="step-workspace" class="space-y-4 no-print">
-          <!-- Step 1 -->
           <div id="ui-step-1" class="bg-slate-950/50 border border-dashed border-slate-800 rounded-2xl p-8 text-center">
             <p class="text-slate-300 text-sm font-medium mb-1">Ready for Biometric Verification</p>
             <p class="text-slate-500 text-xs">Press and hold the fingerprint sensor on the left, or switch ON <strong>Lock Thumb Contact</strong>.</p>
           </div>
 
-          <!-- Step 2: Account Lookup -->
           <div id="ui-step-2" class="hidden space-y-4">
-            <label class="block text-xs uppercase tracking-wider font-bold text-slate-400">Customer Name (Voice or Manual Fallback)</label>
+            <label class="block text-xs uppercase tracking-wider font-bold text-slate-400">Customer Name (Voice via Gemini or Manual Fallback)</label>
             <div class="flex gap-2">
               <input id="manual-name-input" type="text" placeholder="e.g., Drushya S N or Ramesh Kumar" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition" />
               <button onclick="handleManualInput(document.getElementById('manual-name-input').value)" class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition">
@@ -226,7 +219,6 @@
             </div>
           </div>
 
-          <!-- Step 3: Transaction Type -->
           <div id="ui-step-3" class="hidden space-y-4">
             <p class="text-xs uppercase tracking-wider font-bold text-slate-400">Select Transaction Type (Say "Deposit" or "Withdrawal")</p>
             <div class="grid grid-cols-2 gap-4">
@@ -248,7 +240,6 @@
             </div>
           </div>
 
-          <!-- Step 4: Amount -->
           <div id="ui-step-4" class="hidden space-y-4">
             <label class="block text-xs uppercase tracking-wider font-bold text-slate-400">Transaction Amount in Rupees (₹)</label>
             <div class="flex gap-2">
@@ -267,7 +258,7 @@
           </div>
         </div>
 
-        <!-- Step 5: Printable Slip -->
+        <!-- Printable Slip -->
         <div id="printable-slip" class="hidden bg-white text-slate-900 rounded-2xl p-6 shadow-2xl border border-slate-200 mt-4">
           <div class="flex justify-between items-start border-b-2 border-dashed border-slate-300 pb-4 mb-5">
             <div>
@@ -349,7 +340,7 @@
   </div>
 
   <script>
-    const BACKEND_API_URL = "";
+    const BACKEND_API_URL = "https://bank-kiosk-api.onrender.com";
 
     const DEFAULT_ACCOUNTS = [
       { name: "Drushya S N", account: "7739104826" },
@@ -370,165 +361,162 @@
     let currentPromptText = "";
 
     // ==========================================
-    // CROWD-RESILIENT HALF-DUPLEX VOICE ENGINE
+    // GEMINI MEDIARECORDER HALF-DUPLEX ENGINE
     // ==========================================
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    let recognition = null;
+    let audioStream = null;
+    let mediaRecorder = null;
+    let recordStopTimer = null;
     let micHardwareOn = false;
     let awaitingUserTurn = false;
     let isSpeakingNow = false;
     let speechPollInterval = null;
     let currentSpeechId = 0;
-    let hardwareMicStream = null;
     window.currentUtterance = null;
 
-    async function lockHardwareNoiseCancellation() {
-      if (hardwareMicStream || !navigator.mediaDevices) return;
+    async function ensureMicStream() {
+      if (audioStream && audioStream.active) return audioStream;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
       try {
-        hardwareMicStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false }
+        audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
         });
-      } catch (e) {}
+        return audioStream;
+      } catch (e) {
+        awaitingUserTurn = false;
+        updateMicUI("OFF");
+        showBanner("Microphone permission denied. Allow Microphone in Chrome site settings.", "bg-rose-600 text-white");
+        return null;
+      }
     }
 
-    function isSelfEcho(transcript) {
-      const lower = transcript.toLowerCase();
-      const kioskPhrases = [
-        "please say your", "thumb contact locked", "account ending in",
-        "say yes to verify", "would you like to make", "how many rupees",
-        "scanning your thumbprint", "welcome to vaanibank"
-      ];
-      return kioskPhrases.some(phrase => lower.includes(phrase));
-    }
-
-    function findBestAccountMatch(spokenQuery) {
-      const cleanQuery = spokenQuery.toLowerCase().replace(/[^a-z\s]/g, "").trim();
-      if (!cleanQuery) return null;
-
-      let bestMatch = null;
-      let bestScore = 0;
-
-      for (const acc of accountsDB) {
-        const target = acc.name.toLowerCase().replace(/[^a-z\s]/g, "").trim();
-        if (target === cleanQuery || target.includes(cleanQuery) || cleanQuery.includes(target)) {
-          return acc;
-        }
-        const targetFirst = target.split(" ")[0];
-        const queryFirst = cleanQuery.split(" ")[0];
-        const score = Math.max(bigramSimilarity(cleanQuery, target), bigramSimilarity(queryFirst, targetFirst));
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = acc;
+    function pickSupportedMimeType() {
+      const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+      for (const mime of candidates) {
+        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mime)) {
+          return mime;
         }
       }
-      return bestScore >= 0.55 ? bestMatch : null;
+      return "";
     }
 
-    function bigramSimilarity(str1, str2) {
-      if (str1.length < 2 || str2.length < 2) return str1 === str2 ? 1 : 0;
-      const bigrams1 = new Map();
-      for (let i = 0; i < str1.length - 1; i++) {
-        const bg = str1.substring(i, i + 2);
-        bigrams1.set(bg, (bigrams1.get(bg) || 0) + 1);
-      }
-      let intersection = 0;
-      for (let i = 0; i < str2.length - 1; i++) {
-        const bg = str2.substring(i, i + 2);
-        const count = bigrams1.get(bg) || 0;
-        if (count > 0) {
-          bigrams1.set(bg, count - 1);
-          intersection++;
-        }
-      }
-      return (2.0 * intersection) / (str1.length + str2.length - 2);
-    }
+    async function hardStartMic() {
+      if (isSpeakingNow || window.speechSynthesis.speaking || !awaitingUserTurn || !isThumbHeld) return;
+      if (micHardwareOn) return;
 
-    function createFreshRecognizer() {
-      if (!SpeechRecognition) return null;
-      const rec = new SpeechRecognition();
-      rec.continuous = false;
-      rec.interimResults = false;
-      rec.maxAlternatives = 3;
-      rec.lang = "en-IN";
+      const stream = await ensureMicStream();
+      if (!stream || !awaitingUserTurn || !isThumbHeld || isSpeakingNow || window.speechSynthesis.speaking) return;
 
-      rec.onstart = () => {
-        if (isSpeakingNow || window.speechSynthesis.speaking) {
-          hardStopMic();
-          return;
-        }
+      try {
+        const mimeType = pickSupportedMimeType();
+        const chunks = [];
+        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) chunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          clearTimeout(recordStopTimer);
+          micHardwareOn = false;
+          const wasAwaiting = awaitingUserTurn;
+          awaitingUserTurn = false;
+
+          const blobType = mediaRecorder?.mimeType || "audio/webm";
+          const audioBlob = new Blob(chunks, { type: blobType });
+          mediaRecorder = null;
+
+          if (!isThumbHeld || state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") {
+            updateMicUI("OFF");
+            return;
+          }
+
+          if (!wasAwaiting || audioBlob.size < 800) {
+            awaitingUserTurn = true;
+            updateMicUI("OFF");
+            setTimeout(() => hardStartMic(), 250);
+            return;
+          }
+
+          await sendAudioToGemini(audioBlob, blobType);
+        };
+
         micHardwareOn = true;
         updateMicUI("LISTENING");
-      };
+        mediaRecorder.start();
 
-      rec.onresult = (event) => {
-        const alternatives = Array.from(event.results[0]).map(r => r.transcript.trim());
-        const primarySpoken = alternatives[0] || "";
-        hardStopMic();
-
-        if (!primarySpoken || isSelfEcho(primarySpoken)) {
-          if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
-            awaitingUserTurn = true;
-            setTimeout(() => hardStartMic(), 300);
+        // Capture a focused 3.5s answer window and stop cleanly
+        recordStopTimer = setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === "recording") {
+            try { mediaRecorder.stop(); } catch (e) {}
           }
-          return;
-        }
-
-        document.getElementById("heard-transcript").textContent = `Heard: "${primarySpoken}"`;
-        updateMicUI("PROCESSING");
-
-        setTimeout(() => {
-          processStepInput(primarySpoken, alternatives);
-        }, 300);
-      };
-
-      rec.onerror = (event) => {
+        }, 3500);
+      } catch (e) {
         micHardwareOn = false;
-        if (event.error === "not-allowed") {
-          awaitingUserTurn = false;
-          updateMicUI("OFF");
-          showBanner("Microphone blocked. Allow Microphone in address bar site settings.", "bg-rose-600 text-white");
-        } else if (event.error === "no-speech" && awaitingUserTurn && !isSpeakingNow && !window.speechSynthesis.speaking && isThumbHeld) {
-          updateMicUI("OFF");
-          setTimeout(() => hardStartMic(), 250);
-        } else {
-          updateMicUI("OFF");
-        }
-      };
-
-      rec.onend = () => {
-        micHardwareOn = false;
-        if (awaitingUserTurn && !isSpeakingNow && !window.speechSynthesis.speaking && isThumbHeld) {
-          setTimeout(() => hardStartMic(), 250);
-        } else {
-          updateMicUI((isSpeakingNow || window.speechSynthesis.speaking) ? "SPEAKING" : "OFF");
-        }
-      };
-
-      return rec;
-    }
-
-    function hardStartMic() {
-      if (!SpeechRecognition || isSpeakingNow || window.speechSynthesis.speaking || !awaitingUserTurn || !isThumbHeld) return;
-      if (micHardwareOn) return;
-      try {
-        recognition = createFreshRecognizer();
-        recognition.start();
-      } catch (e) {}
+        updateMicUI("OFF");
+      }
     }
 
     function hardStopMic() {
       awaitingUserTurn = false;
-      if (recognition) {
+      clearTimeout(recordStopTimer);
+      if (mediaRecorder) {
         try {
-          recognition.onend = null;
-          recognition.onerror = null;
-          recognition.onresult = null;
-          recognition.abort();
+          mediaRecorder.onstop = null;
+          if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
         } catch (e) {}
-        recognition = null;
+        mediaRecorder = null;
       }
       micHardwareOn = false;
       updateMicUI((isSpeakingNow || window.speechSynthesis.speaking) ? "SPEAKING" : "OFF");
+    }
+
+    async function sendAudioToGemini(audioBlob, mimeType) {
+      updateMicUI("PROCESSING");
+      document.getElementById("heard-transcript").textContent = "Transcribing with Gemini AI...";
+
+      try {
+        const formData = new FormData();
+        const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+        formData.append("audio", audioBlob, `answer.${ext}`);
+        formData.append("context_hint", state);
+
+        const res = await fetch(`${BACKEND_API_URL}/api/transcribe`, {
+          method: "POST",
+          body: formData
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const transcript = (data.transcript || "").trim();
+
+        if (!isThumbHeld || state === "IDLE" || state === "DONE") {
+          updateMicUI("OFF");
+          return;
+        }
+
+        if (!transcript) {
+          document.getElementById("heard-transcript").textContent = "No clear speech detected — listening again...";
+          awaitingUserTurn = true;
+          updateMicUI("OFF");
+          setTimeout(() => hardStartMic(), 300);
+          return;
+        }
+
+        document.getElementById("heard-transcript").textContent = `Heard: "${transcript}"`;
+        updateMicUI("OFF");
+        processStepInput(transcript);
+      } catch (err) {
+        document.getElementById("heard-transcript").textContent = "AI transcription busy — please speak again or use manual input.";
+        updateMicUI("OFF");
+        if (isThumbHeld && state !== "IDLE" && state !== "DONE") {
+          awaitingUserTurn = true;
+          setTimeout(() => hardStartMic(), 600);
+        }
+      }
     }
 
     function speakOnly(text) {
@@ -652,7 +640,7 @@
       const label = document.getElementById("mic-status-text");
       if (status === "LISTENING") {
         dot.className = "w-3 h-3 rounded-full bg-emerald-400 listening-pulse";
-        label.textContent = "Mic ON — Speak Your Answer Now";
+        label.textContent = "Mic ON — Speak Your Answer (3.5s)";
         label.className = "text-xs font-bold text-emerald-400";
       } else if (status === "SPEAKING") {
         dot.className = "w-3 h-3 rounded-full bg-amber-400";
@@ -660,7 +648,7 @@
         label.className = "text-xs font-semibold text-amber-400";
       } else if (status === "PROCESSING") {
         dot.className = "w-3 h-3 rounded-full bg-sky-400";
-        label.textContent = "Mic OFF (Checking Answer...)";
+        label.textContent = "Mic OFF (Gemini Transcribing...)";
         label.className = "text-xs font-semibold text-sky-400";
       } else {
         dot.className = "w-3 h-3 rounded-full bg-slate-600";
@@ -670,12 +658,54 @@
     }
 
     // ==========================================
-    // ACTIVATION & HYBRID L1 HARDWARE MODE
+    // ACCOUNT MATCHING & ACTIVATION
     // ==========================================
+    function findBestAccountMatch(spokenQuery) {
+      const cleanQuery = spokenQuery.toLowerCase().replace(/[^a-z\s]/g, "").trim();
+      if (!cleanQuery) return null;
+
+      let bestMatch = null;
+      let bestScore = 0;
+
+      for (const acc of accountsDB) {
+        const target = acc.name.toLowerCase().replace(/[^a-z\s]/g, "").trim();
+        if (target === cleanQuery || target.includes(cleanQuery) || cleanQuery.includes(target)) {
+          return acc;
+        }
+        const targetFirst = target.split(" ")[0];
+        const queryFirst = cleanQuery.split(" ")[0];
+        const score = Math.max(bigramSimilarity(cleanQuery, target), bigramSimilarity(queryFirst, targetFirst));
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = acc;
+        }
+      }
+      return bestScore >= 0.5 ? bestMatch : null;
+    }
+
+    function bigramSimilarity(str1, str2) {
+      if (str1.length < 2 || str2.length < 2) return str1 === str2 ? 1 : 0;
+      const bigrams1 = new Map();
+      for (let i = 0; i < str1.length - 1; i++) {
+        const bg = str1.substring(i, i + 2);
+        bigrams1.set(bg, (bigrams1.get(bg) || 0) + 1);
+      }
+      let intersection = 0;
+      for (let i = 0; i < str2.length - 1; i++) {
+        const bg = str2.substring(i, i + 2);
+        const count = bigrams1.get(bg) || 0;
+        if (count > 0) {
+          bigrams1.set(bg, count - 1);
+          intersection++;
+        }
+      }
+      return (2.0 * intersection) / (str1.length + str2.length - 2);
+    }
+
     async function activateKiosk() {
       document.getElementById("activation-overlay").classList.add("hidden");
       renderAccountList();
-      await lockHardwareNoiseCancellation();
+      await ensureMicStream();
       speakOnly("Welcome to VaaniBank Kiosk. Please place and hold your thumb on the scanner to begin.");
     }
 
@@ -838,19 +868,23 @@
     function handleManualInput(val) {
       if (!val || !val.trim()) return;
       hardStopMic();
-      processStepInput(val.trim(), [val.trim()]);
+      processStepInput(val.trim());
     }
 
-    async function processStepInput(spokenText, alternatives = [spokenText]) {
+    async function processStepInput(spokenText) {
       if (!isThumbHeld) return;
       const clean = spokenText.trim();
+      const lower = clean.toLowerCase();
 
       if (state === "ASK_NAME") {
-        let match = null;
-        for (const alt of alternatives) {
-          match = findBestAccountMatch(alt);
-          if (match) break;
+        let match = findBestAccountMatch(clean);
+        if (!match) {
+          try {
+            const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(clean)}`);
+            if (res.ok) match = await res.json();
+          } catch (e) {}
         }
+
         if (match) {
           txData.matchedUser = match;
           const last4 = match.account.slice(-4);
@@ -865,40 +899,36 @@
       }
 
       if (state === "VERIFY_NAME") {
-        if (alternatives.some(a => isYes(a))) confirmMatchedName(true);
-        else if (alternatives.some(a => isNo(a))) confirmMatchedName(false);
+        if (isYes(lower)) confirmMatchedName(true);
+        else if (isNo(lower)) confirmMatchedName(false);
         else askAndListen(`Please say Yes to verify ${txData.matchedUser.name}, or say No to re-enter your name.`);
         return;
       }
 
       if (state === "ASK_TX") {
-        if (alternatives.some(a => a.toLowerCase().includes("deposit"))) selectTransactionType("DEPOSIT");
-        else if (alternatives.some(a => a.toLowerCase().includes("withdraw"))) selectTransactionType("WITHDRAWAL");
+        if (lower.includes("deposit")) selectTransactionType("DEPOSIT");
+        else if (lower.includes("withdraw")) selectTransactionType("WITHDRAWAL");
         else askAndListen("Please say either Deposit or Withdrawal.");
         return;
       }
 
       if (state === "VERIFY_TX") {
-        if (alternatives.some(a => isYes(a))) confirmTransactionType(true);
-        else if (alternatives.some(a => isNo(a))) confirmTransactionType(false);
+        if (isYes(lower)) confirmTransactionType(true);
+        else if (isNo(lower)) confirmTransactionType(false);
         else askAndListen(`You chose ${txData.txType}. Say Yes to verify, or No to change.`);
         return;
       }
 
       if (state === "ASK_AMOUNT") {
-        let num = null;
-        for (const alt of alternatives) {
-          num = extractNumberFromSpeech(alt.toLowerCase());
-          if (num && num > 0) break;
-        }
+        const num = extractNumberFromSpeech(lower);
         if (num && num > 0) selectAmount(num);
         else askAndListen("I did not catch the amount. Please clearly state the amount in rupees.");
         return;
       }
 
       if (state === "VERIFY_AMOUNT") {
-        if (alternatives.some(a => isYes(a))) runMidSessionBiometricScan();
-        else if (alternatives.some(a => isNo(a))) retryAmount();
+        if (isYes(lower)) runMidSessionBiometricScan();
+        else if (isNo(lower)) retryAmount();
         else askAndListen(`Say Yes to authenticate your thumbprint and print the ${txData.txType} slip for ${txData.amount} rupees, or say No to change the amount.`);
       }
     }
@@ -996,9 +1026,33 @@
       setKioskState("DONE");
       document.getElementById("step-workspace").classList.add("hidden");
 
-      const refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      const timestamp = new Date().toLocaleString("en-IN");
-      const hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount}:${Date.now()}`);
+      let refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      let timestamp = new Date().toLocaleString("en-IN");
+      let hash = "";
+
+      try {
+        const res = await fetch(`${BACKEND_API_URL}/api/generate-slip`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: txData.matchedUser.name,
+            account: txData.matchedUser.account,
+            tx_type: txData.txType,
+            amount: txData.amount,
+            biometric_pulses: biometricPulseCount
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          refId = data.reference_id;
+          timestamp = data.timestamp;
+          hash = data.esign_hash;
+        }
+      } catch (e) {}
+
+      if (!hash) {
+        hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount}:${Date.now()}`);
+      }
 
       document.getElementById("slip-tx-type").textContent = `${txData.txType} SLIP`;
       document.getElementById("slip-timestamp").textContent = timestamp;
@@ -1092,7 +1146,7 @@
       document.getElementById("new-acc-num").value = Math.floor(1000000000 + Math.random() * 9000000000).toString();
     }
 
-    function addNewAccount() {
+    async function addNewAccount() {
       const name = document.getElementById("new-acc-name").value.trim();
       const account = document.getElementById("new-acc-num").value.trim();
       if (!name || account.length < 6) {
@@ -1101,6 +1155,13 @@
       }
       accountsDB.push({ name, account });
       localStorage.setItem("kiosk_accounts_db", JSON.stringify(accountsDB));
+      try {
+        await fetch(`${BACKEND_API_URL}/api/accounts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, account })
+        });
+      } catch (e) {}
       document.getElementById("new-acc-name").value = "";
       document.getElementById("new-acc-num").value = "";
       renderAccountList();
