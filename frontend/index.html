@@ -313,11 +313,11 @@
     };
 
     // ==========================================
-    // GEMINI-LIVE STYLE CONTINUOUS VOICE ENGINE
+    // ECHO-PROOF CONTINUOUS VOICE ENGINE
     // ==========================================
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
-    let micStreamActive = false;
+    let sessionMicEnabled = false;
     let isKioskSpeaking = false;
 
     function initContinuousSpeech() {
@@ -326,57 +326,71 @@
         return;
       }
       recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      recognition.continuous = false; // Single clean phrase per turn prevents echo buildup
       recognition.interimResults = false;
       recognition.lang = "en-IN";
 
       recognition.onstart = () => {
-        micStreamActive = true;
         updateMicIndicator(true);
       };
 
-      // Auto-restart loop keeps mic alive throughout the entire session
+      // Automatically re-open mic only when kiosk is NOT speaking
       recognition.onend = () => {
-        if (micStreamActive) {
-          try { recognition.start(); } catch (e) {}
-        } else {
-          updateMicIndicator(false);
+        updateMicIndicator(false);
+        if (sessionMicEnabled && !isKioskSpeaking) {
+          setTimeout(() => {
+            if (sessionMicEnabled && !isKioskSpeaking) {
+              try { recognition.start(); } catch (e) {}
+            }
+          }, 250);
         }
       };
 
       recognition.onerror = (event) => {
         if (event.error === "not-allowed") {
-          micStreamActive = false;
+          sessionMicEnabled = false;
           showBanner("Microphone permission blocked. Allow mic access in browser site settings.", "bg-rose-600 text-white");
         }
       };
 
       recognition.onresult = (event) => {
-        if (isKioskSpeaking) return; // Software mute while kiosk speaks
-        const transcript = event.results[event.results.length - 1][0].transcript.trim();
+        if (isKioskSpeaking) return;
+        const transcript = event.results[0][0].transcript.trim();
         document.getElementById("heard-transcript").textContent = `Heard: "${transcript}"`;
         routeVoiceCommand(transcript);
       };
 
-      try { recognition.start(); } catch (e) {}
+      sessionMicEnabled = true;
     }
 
     function speak(text) {
       lastSpokenPrompt = text;
       document.getElementById("kiosk-prompt-text").textContent = text;
-      window.speechSynthesis.cancel();
 
+      // 1. Completely stop mic while kiosk talks so it NEVER hears itself
       isKioskSpeaking = true;
+      if (recognition) {
+        try { recognition.abort(); } catch (e) {}
+      }
+      updateMicIndicator(false);
+
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "en-IN";
       utterance.rate = 0.98;
 
-      utterance.onend = () => {
-        isKioskSpeaking = false;
+      // 2. Wait 450ms after speech finishes for room echo to clear, then resume mic
+      const resumeListening = () => {
+        setTimeout(() => {
+          isKioskSpeaking = false;
+          if (sessionMicEnabled && recognition) {
+            try { recognition.start(); } catch (e) {}
+          }
+        }, 450);
       };
-      utterance.onerror = () => {
-        isKioskSpeaking = false;
-      };
+
+      utterance.onend = resumeListening;
+      utterance.onerror = resumeListening;
       window.speechSynthesis.speak(utterance);
     }
 
@@ -389,11 +403,11 @@
       const label = document.getElementById("mic-status-text");
       if (active) {
         dot.className = "w-3 h-3 rounded-full bg-emerald-400 listening-pulse";
-        label.textContent = "Mic Live (Continuous)";
+        label.textContent = "Mic Live (Listening)";
         label.className = "text-xs font-bold text-emerald-400";
       } else {
         dot.className = "w-3 h-3 rounded-full bg-slate-600";
-        label.textContent = "Mic Standby";
+        label.textContent = isKioskSpeaking ? "Mic Paused (Kiosk Speaking)" : "Mic Standby";
         label.className = "text-xs font-medium text-slate-400";
       }
     }
