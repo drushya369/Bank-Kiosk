@@ -172,7 +172,7 @@
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
       <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Hands-free voice banking kiosk with phonetic name matching, automatic turn-locked listening, continuous thumb lock, and SHA-256 verification.
+        Hands-free voice banking kiosk with phonetic name matching, accurate rupee recognition, continuous thumb lock, and SHA-256 verification.
       </p>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
@@ -423,7 +423,6 @@
     let activeRec = null;
     let speakWatchdog = null;
     let restartTimer = null;
-    let missedSpeechCount = 0;
     let isSpeaking = false;
     let isListening = false;
     let shouldListen = false;
@@ -493,14 +492,13 @@
         updateMicUI("LISTENING");
 
         let handledResult = false;
-        let latestTranscript = "";
+        let turnTranscript = "";
 
         const commitSpeech = (text) => {
           if (handledResult || myTurn !== turnId || !isThumbHeld) return;
           const clean = (text || "").trim();
           if (!clean) return;
           handledResult = true;
-          missedSpeechCount = 0;
           stopListening();
           document.getElementById("heard-transcript").textContent = `Heard: "${clean}"`;
           handleSpokenUtterance(clean);
@@ -520,15 +518,9 @@
             }
           }
 
-          latestTranscript = (finalTranscript || interim).trim();
-          if (latestTranscript) {
-            document.getElementById("heard-transcript").textContent = `Listening: "${latestTranscript}"`;
-          }
-
-          const quickIntent = detectQuickCommand(latestTranscript);
-          if (quickIntent && (state === "VERIFY_NAME" || state === "VERIFY_TX" || state === "VERIFY_AMOUNT" || state === "ASK_TX")) {
-            commitSpeech(latestTranscript);
-            return;
+          turnTranscript = (finalTranscript || interim).trim();
+          if (turnTranscript) {
+            document.getElementById("heard-transcript").textContent = `Listening: "${turnTranscript}"`;
           }
 
           if (finalTranscript.trim()) {
@@ -538,25 +530,18 @@
 
         rec.onspeechend = () => {
           setTimeout(() => {
-            if (!handledResult && latestTranscript && myTurn === turnId && isThumbHeld) {
-              commitSpeech(latestTranscript);
+            if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
+              commitSpeech(turnTranscript);
             }
-          }, 180);
+          }, 220);
         };
 
         rec.onnomatch = () => {
           if (handledResult || myTurn !== turnId || !isThumbHeld) return;
           handledResult = true;
-          missedSpeechCount++;
           stopListening();
-          document.getElementById("heard-transcript").textContent = "Could not catch that — speaking prompt again...";
-          if (missedSpeechCount >= 2) {
-            missedSpeechCount = 0;
-            speak("I didn't catch that. Please speak clearly after the beep or prompt.", true);
-          } else {
-            shouldListen = true;
-            restartTimer = setTimeout(() => startListening(), 350);
-          }
+          document.getElementById("heard-transcript").textContent = "Didn't catch that — asking again...";
+          speak("I didn't catch that. Please say it again clearly.", true);
         };
 
         rec.onerror = (ev) => {
@@ -565,39 +550,25 @@
           if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
             shouldListen = false;
             updateMicUI("OFF");
-            showBanner("Microphone permission blocked. Click the lock/tune icon in Chrome's address bar and allow Microphone.");
+            showBanner("Microphone permission blocked. Allow Microphone in Chrome site settings.");
             return;
           }
           if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
-            missedSpeechCount++;
-            updateMicUI("OFF");
-            if (missedSpeechCount >= 2) {
-              missedSpeechCount = 0;
-              speak("I didn't hear you clearly. Please try saying it again.", true);
-            } else {
-              restartTimer = setTimeout(() => startListening(), 350);
-            }
+            document.getElementById("heard-transcript").textContent = "Mic didn't pick up speech — asking again...";
+            speak("I couldn't hear you clearly. Please speak again.", true);
           }
         };
 
         rec.onend = () => {
           isListening = false;
           activeRec = null;
-          if (!handledResult && latestTranscript && myTurn === turnId && isThumbHeld) {
-            commitSpeech(latestTranscript);
+          if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
+            commitSpeech(turnTranscript);
             return;
           }
           if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
-            missedSpeechCount++;
-            updateMicUI("OFF");
-            if (missedSpeechCount >= 2) {
-              missedSpeechCount = 0;
-              document.getElementById("heard-transcript").textContent = "Nothing heard — asking again...";
-              speak("I didn't hear anything. Please speak again.", true);
-            } else {
-              document.getElementById("heard-transcript").textContent = "Didn't catch that — listening again...";
-              restartTimer = setTimeout(() => startListening(), 300);
-            }
+            document.getElementById("heard-transcript").textContent = "Nothing heard — asking again...";
+            speak("I didn't hear anything. Please speak again.", true);
           } else if (!isSpeaking) {
             updateMicUI("OFF");
           }
@@ -616,7 +587,6 @@
     function retryListeningNow() {
       if (!isThumbHeld || state === "IDLE" || state === "DONE") return;
       turnId++;
-      missedSpeechCount = 0;
       stopListening();
       try { window.speechSynthesis.cancel(); } catch (e) {}
       isSpeaking = false;
@@ -649,7 +619,7 @@
               shouldListen = true;
               startListening();
             }
-          }, 500);
+          }, 550);
         }
       };
 
@@ -682,7 +652,7 @@
     }
 
     // ==========================================
-    // PRONUNCIATION & VOICE INTENT PROCESSING
+    // PRONUNCIATION, MONEY & INTENT PARSING
     // ==========================================
     function phoneticNormalize(str) {
       return (str || "")
@@ -753,18 +723,78 @@
       return bestScore >= 0.42 ? bestAcc : null;
     }
 
+    function extractNumberFromSpeech(text) {
+      if (!text) return null;
+      const normalized = text
+        .toLowerCase()
+        .replace(/₹|rs\.?|rupees?|inr/gi, " ")
+        .replace(/,/g, " ")
+        .replace(/\band\b/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      if (!normalized) return null;
+
+      // Direct numeric digits (with optional thousand / lakh / k suffix)
+      const digitScaleMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|thousand|lakh|lac|lakhs|hundred)?\b/);
+      if (digitScaleMatch) {
+        const base = parseFloat(digitScaleMatch[1]);
+        const unit = digitScaleMatch[2] || "";
+        if (unit === "k" || unit === "thousand") return Math.round(base * 1000);
+        if (unit === "lakh" || unit === "lac" || unit === "lakhs") return Math.round(base * 100000);
+        if (unit === "hundred") return Math.round(base * 100);
+        if (!isNaN(base) && base > 0) return base;
+      }
+
+      const ones = {
+        zero: 0, one: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4,
+        five: 5, six: 6, seven: 7, eight: 8, ate: 8, nine: 9,
+        ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+        fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19
+      };
+      const tens = {
+        twenty: 20, thirty: 30, forty: 40, fifty: 50,
+        sixty: 60, seventy: 70, eighty: 80, ninety: 90
+      };
+
+      const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+      let total = 0;
+      let current = 0;
+      let sawNumberWord = false;
+
+      for (const tok of tokens) {
+        if (/^\d+$/.test(tok)) {
+          current += parseInt(tok, 10);
+          sawNumberWord = true;
+        } else if (tok in ones) {
+          current += ones[tok];
+          sawNumberWord = true;
+        } else if (tok in tens) {
+          current += tens[tok];
+          sawNumberWord = true;
+        } else if (tok === "hundred") {
+          current = (current || 1) * 100;
+          sawNumberWord = true;
+        } else if (tok === "thousand" || tok === "tausand" || tok === "k") {
+          total += (current || 1) * 1000;
+          current = 0;
+          sawNumberWord = true;
+        } else if (tok === "lakh" || tok === "lac" || tok === "lakhs") {
+          total += (current || 1) * 100000;
+          current = 0;
+          sawNumberWord = true;
+        }
+      }
+
+      const finalVal = total + current;
+      return sawNumberWord && finalVal > 0 ? finalVal : null;
+    }
+
     function isYes(t) {
-      return /\b(yes|yeah|yep|yup|ya|confirm|correct|right|ok|okay|sure|proceed|true|haan|ha|ji)\b/i.test(t || "");
+      return /\b(yes|yeah|yep|yup|confirm|correct|right|okay|sure|proceed|haan|ji)\b/i.test(t || "");
     }
     function isNo(t) {
-      return /\b(no|nope|nah|wrong|retry|change|cancel|back|incorrect|not|nahi)\b/i.test(t || "");
-    }
-    function detectQuickCommand(t) {
-      if (isYes(t)) return "YES";
-      if (isNo(t)) return "NO";
-      if (/\bdeposit\b/i.test(t || "")) return "DEPOSIT";
-      if (/\bwithdraw/i.test(t || "")) return "WITHDRAWAL";
-      return null;
+      return /\b(no|nope|nah|wrong|retry|change|cancel|back|incorrect|nahi)\b/i.test(t || "");
     }
 
     function handleManualInput(val) {
@@ -796,7 +826,7 @@
           setKioskState("VERIFY_NAME");
           speak(`Found ${match.name}, account ending in ${last4.split("").join(" ")}. Say Yes or No.`, true);
         } else {
-          speak(`I heard ${clean}. Please say your registered name again.`, true);
+          speak(`I heard ${clean}, which did not match a registered account. Please say your full name again.`, true);
         }
         return;
       }
@@ -804,35 +834,38 @@
       if (state === "VERIFY_NAME") {
         if (isYes(clean)) confirmMatchedName(true);
         else if (isNo(clean)) confirmMatchedName(false);
-        else speak("Please say Yes or No.", true);
+        else speak(`I heard ${clean}. Please say Yes to confirm ${txData.matchedUser.name}, or No to try again.`, true);
         return;
       }
 
       if (state === "ASK_TX") {
         if (/\bdeposit\b/i.test(clean)) selectTransactionType("DEPOSIT");
         else if (/\bwithdraw/i.test(clean)) selectTransactionType("WITHDRAWAL");
-        else speak("Please say Deposit or Withdrawal.", true);
+        else speak(`I heard ${clean}. Please say Deposit or Withdrawal.`, true);
         return;
       }
 
       if (state === "VERIFY_TX") {
         if (isYes(clean)) confirmTransactionType(true);
         else if (isNo(clean)) confirmTransactionType(false);
-        else speak("Please say Yes or No.", true);
+        else speak(`I heard ${clean}. Please say Yes to confirm ${txData.txType}, or No to change.`, true);
         return;
       }
 
       if (state === "ASK_AMOUNT") {
         const num = extractNumberFromSpeech(clean.toLowerCase());
-        if (num && num > 0) selectAmount(num);
-        else speak("Please say the amount in rupees.", true);
+        if (num && num > 0) {
+          selectAmount(num);
+        } else {
+          speak(`I heard ${clean}, but didn't catch a valid rupee amount. Please say the amount in rupees again.`, true);
+        }
         return;
       }
 
       if (state === "VERIFY_AMOUNT") {
         if (isYes(clean)) runMidSessionBiometricScan();
         else if (isNo(clean)) retryAmount();
-        else speak("Say Yes to print slip, or No to change amount.", true);
+        else speak(`I heard ${clean}. Say Yes to authenticate and print slip, or No to change amount.`, true);
       }
     }
 
@@ -942,7 +975,6 @@
 
       isThumbHeld = true;
       biometricPulseCount = 0;
-      missedSpeechCount = 0;
       warmUpBackend();
       updateBiometricUI(true);
 
@@ -1010,7 +1042,6 @@
 
     function abortSession(reason) {
       turnId++;
-      missedSpeechCount = 0;
       stopListening();
       clearTimeout(speakWatchdog);
       clearInterval(biometricHeartbeatTimer);
@@ -1093,7 +1124,6 @@
 
     function resetAfterCompletion() {
       turnId++;
-      missedSpeechCount = 0;
       stopListening();
       clearTimeout(speakWatchdog);
       clearInterval(biometricHeartbeatTimer);
@@ -1191,20 +1221,6 @@
 
     function hideBanner() {
       document.getElementById("alert-banner").style.display = "none";
-    }
-
-    function extractNumberFromSpeech(text) {
-      const cleaned = (text || "").replace(/,/g, "");
-      const digits = cleaned.match(/\d+/);
-      if (digits) return parseFloat(digits[0]);
-      const words = {
-        "hundred": 100, "five hundred": 500, "thousand": 1000,
-        "two thousand": 2000, "five thousand": 5000, "ten thousand": 10000
-      };
-      for (const [k, v] of Object.entries(words)) {
-        if (cleaned.includes(k)) return v;
-      }
-      return null;
     }
 
     async function sha256Hex(message) {
