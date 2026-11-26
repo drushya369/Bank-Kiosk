@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VaaniBank — Voice-Assisted Biometric Banking Slip</title>
+  <title>Voice-Assisted Biometric Banking Slip</title>
   <style>
     :root {
       --bg: #050811;
@@ -172,7 +172,7 @@
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
       <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Hands-free voice banking kiosk with echo-filtered listening, spoken rupee recognition, continuous thumb lock, and printable SHA-256 slips.
+        Hands-free voice banking kiosk with phonetic account matching, spoken rupee recognition, continuous thumb lock, and printable SHA-256 slips.
       </p>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
@@ -217,7 +217,7 @@
           <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
         </div>
         <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
-          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and turns ON only for your reply.
+          Hold your thumb until slip generation finishes. The mic turns ON automatically after each prompt and turns OFF while speaking.
         </p>
 
         <div style="display:flex;justify-content:center;margin:14px 0;">
@@ -290,7 +290,7 @@
 
           <div id="ui-step-2" style="display:none;">
             <div id="confirm-name-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#10b981;">
-              <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Account Matched — Say "Yes" or "No"</div>
+              <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Closest Account Matched — Say "Yes" or "No"</div>
               <div id="matched-account-display" style="font-weight:700;font-size:15px;margin-bottom:10px;"></div>
               <div style="display:flex;gap:8px;">
                 <button type="button" onclick="confirmMatchedName(true)" class="btn btn-accent">Yes</button>
@@ -419,10 +419,9 @@
     let biometricPulseCount = 0;
     let txData = { matchedUser: null, txType: null, amount: null };
     let currentPromptText = "";
-    let lastSpokenAt = 0;
 
     // ==========================================
-    // AUTOMATIC ECHO-SAFE TURN-LOCKED ENGINE
+    // AUTOMATIC HANDS-FREE TURN-LOCKED ENGINE
     // ==========================================
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     let activeRec = null;
@@ -480,21 +479,6 @@
       updateMicUI(isSpeaking ? "SPEAKING" : "OFF");
     }
 
-    function isEchoOfPrompt(candidateText) {
-      const cand = (candidateText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-      const prompt = (currentPromptText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-      if (!cand || !prompt) return false;
-      if (Date.now() - lastSpokenAt < 1200) return true;
-      if (prompt.includes(cand) && cand.length >= 6) return true;
-      const candWords = cand.split(" ").filter((w) => w.length > 2);
-      const promptWords = new Set(prompt.split(" "));
-      if (candWords.length >= 2) {
-        const overlap = candWords.filter((w) => promptWords.has(w)).length;
-        if (overlap / candWords.length >= 0.75) return true;
-      }
-      return false;
-    }
-
     function startListening() {
       if (!SpeechRec) {
         showBanner("This browser does not support SpeechRecognition. Please use Google Chrome.");
@@ -522,15 +506,6 @@
           if (handledResult || myTurn !== turnId || !isThumbHeld) return;
           const clean = (text || "").trim();
           if (!clean) return;
-
-          if (isEchoOfPrompt(clean)) {
-            handledResult = true;
-            stopListening();
-            shouldListen = true;
-            restartTimer = setTimeout(() => startListening(), 350);
-            return;
-          }
-
           handledResult = true;
           stopListening();
           document.getElementById("heard-transcript").textContent = `Heard: "${clean}"`;
@@ -552,7 +527,7 @@
           }
 
           turnTranscript = (finalTranscript || interim).trim();
-          if (turnTranscript && !isEchoOfPrompt(turnTranscript)) {
+          if (turnTranscript) {
             document.getElementById("heard-transcript").textContent = `Listening: "${turnTranscript}"`;
           }
 
@@ -567,7 +542,7 @@
             if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
               commitSpeech(turnTranscript);
             }
-          }, 450);
+          }, 400);
         };
 
         rec.onnomatch = () => {
@@ -645,7 +620,6 @@
         if (finished || myTurn !== turnId) return;
         finished = true;
         clearTimeout(speakWatchdog);
-        lastSpokenAt = Date.now();
         isSpeaking = false;
         updateMicUI("OFF");
 
@@ -655,11 +629,11 @@
               shouldListen = true;
               startListening();
             }
-          }, 1100);
+          }, 400);
         }
       };
 
-      const maxWait = Math.max(1800, Math.min(6500, text.length * 62 + 900));
+      const maxWait = Math.max(1500, Math.min(5500, text.length * 58 + 700));
       speakWatchdog = setTimeout(onDone, maxWait);
 
       setTimeout(() => {
@@ -667,7 +641,7 @@
         try {
           const utter = new SpeechSynthesisUtterance(text);
           utter.lang = "en-IN";
-          utter.rate = 1.0;
+          utter.rate = 1.02;
           window._utter = utter;
           utter.onend = onDone;
           utter.onerror = (ev) => {
@@ -678,7 +652,7 @@
         } catch (e) {
           onDone();
         }
-      }, 100);
+      }, 80);
     }
 
     function repeatCurrentQuestion() {
@@ -688,7 +662,7 @@
     }
 
     // ==========================================
-    // PRONUNCIATION, AMOUNT & INTENT PARSING
+    // SUITABLE NAME, AMOUNT & INTENT PARSING
     // ==========================================
     function phoneticNormalize(str) {
       return (str || "")
@@ -756,7 +730,7 @@
         }
       }
 
-      return bestScore >= 0.42 ? bestAcc : null;
+      return bestScore >= 0.4 ? bestAcc : null;
     }
 
     function extractNumberFromSpeech(text) {
@@ -861,7 +835,10 @@
         if (!match) {
           try {
             const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(clean)}`);
-            if (res.ok) match = await res.json();
+            if (res.ok) {
+              const apiAcc = await res.json();
+              match = findBestAccountMatch(apiAcc.name) || apiAcc;
+            }
           } catch (e) {}
         }
 
@@ -871,9 +848,9 @@
           document.getElementById("matched-account-display").textContent = `${match.name} — Acct ending ${last4}`;
           document.getElementById("confirm-name-box").style.display = "block";
           setKioskState("VERIFY_NAME");
-          speak(`Found ${match.name}, account ending in ${last4.split("").join(" ")}. Say Yes or No.`, true);
+          speak(`Matched account ${match.name}, ending in ${last4.split("").join(" ")}. Say Yes or No.`, true);
         } else {
-          speak(`I heard ${clean}, which did not match a registered account. Please say your full name again.`, true);
+          speak(`I heard ${clean}. Please say a registered customer name again.`, true);
         }
         return;
       }
@@ -888,7 +865,7 @@
       if (state === "ASK_TX") {
         if (/\bdeposit\b/i.test(clean)) selectTransactionType("DEPOSIT");
         else if (/\bwithdraw/i.test(clean)) selectTransactionType("WITHDRAWAL");
-        else speak(`Please say Deposit or Withdrawal.`, true);
+        else speak("Please say Deposit or Withdrawal.", true);
         return;
       }
 
