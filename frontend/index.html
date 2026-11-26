@@ -27,18 +27,18 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
 
-  <!-- Initial Audio & Mic Activation Overlay (Required once by browsers) -->
+  <!-- Initial Audio & Mic Activation Overlay (Grants permission ONCE) -->
   <div id="activation-overlay" class="fixed inset-0 bg-slate-950/95 z-50 flex flex-col items-center justify-center p-6 text-center">
     <div class="max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl">
       <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🎙️</div>
       <h1 class="text-2xl font-bold mb-2">Smart Biometric Banking Kiosk</h1>
       <p class="text-slate-400 text-sm mb-6">
-        Accessible voice-guided deposit &amp; withdrawal slip generator with continuous biometric dead-man's switch.
+        Turn-based voice-guided deposit &amp; withdrawal slip generator with continuous biometric dead-man's switch.
       </p>
       <button onclick="activateKiosk()" class="w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-lg transition shadow-lg">
-        Activate Kiosk &amp; Enable Continuous Mic
+        Activate Kiosk
       </button>
-      <p class="text-xs text-slate-500 mt-4">Grant microphone permission once when prompted; it stays active across the entire session.</p>
+      <p class="text-xs text-slate-500 mt-4">Select "Allow while visiting the site" once—it will never ask again.</p>
     </div>
   </div>
 
@@ -48,17 +48,15 @@
       <span class="text-2xl">🏦</span>
       <div>
         <h1 class="font-bold text-lg leading-tight">VaaniBank Biometric Kiosk</h1>
-        <p class="text-xs text-slate-400">Hands-Free Voice &amp; Thumbprint Terminal</p>
+        <p class="text-xs text-slate-400">Turn-Based Voice &amp; Thumbprint Terminal</p>
       </div>
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
-      <!-- Register Account Button -->
       <button onclick="toggleAccountModal(true)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium flex items-center gap-2 transition">
         <span>➕</span> Register Account (<span id="account-count">3</span>)
       </button>
 
-      <!-- Hybrid Mode Toggle (Prototype vs User Mode) -->
       <div class="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
         <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition">
           Prototype Mode
@@ -70,13 +68,12 @@
     </div>
   </header>
 
-  <!-- Hardware / Security Alert Banner -->
   <div id="alert-banner" class="hidden px-6 py-3 text-center font-semibold text-sm no-print"></div>
 
   <!-- Main Kiosk Workspace -->
   <main class="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-    <!-- Left Column: Biometric Scanner & Continuous Dead-Man's Switch -->
+    <!-- Left Column: Biometric Scanner -->
     <section class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between no-print">
       <div>
         <div class="flex items-center justify-between mb-4">
@@ -87,7 +84,6 @@
           Hold your thumb continuously on the sensor throughout the transaction. Releasing early immediately wipes the session.
         </p>
 
-        <!-- Interactive Thumb Pad -->
         <div class="flex flex-col items-center justify-center my-4">
           <button
             id="thumb-pad"
@@ -105,7 +101,6 @@
         </div>
       </div>
 
-      <!-- Demo Convenience Lock & Live Mic Indicator -->
       <div class="space-y-3 pt-4 border-t border-slate-800">
         <label class="flex items-center justify-between bg-slate-800/60 px-4 py-3 rounded-xl cursor-pointer">
           <div>
@@ -120,7 +115,9 @@
             <span id="mic-dot" class="w-3 h-3 rounded-full bg-slate-600"></span>
             <span id="mic-status-text" class="text-xs font-medium text-slate-400">Mic Standby</span>
           </div>
-          <span id="step-counter" class="text-xs font-bold text-emerald-400">Step 1 / 4</span>
+          <button onclick="manualMicTrigger()" class="text-xs text-emerald-400 hover:underline font-semibold">
+            🎤 Speak Again
+          </button>
         </div>
       </div>
     </section>
@@ -128,28 +125,24 @@
     <!-- Right Column: Conversational Voice Interface & Printable Slip -->
     <section class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
       <div>
-        <!-- Kiosk Spoken Prompt Box -->
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 mb-6 no-print">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs uppercase tracking-wider font-bold text-emerald-400">Kiosk Voice Prompt</span>
-            <button onclick="repeatLastPrompt()" class="text-xs text-slate-400 hover:text-white underline">🔊 Repeat</button>
+            <span class="text-xs uppercase tracking-wider font-bold text-emerald-400" id="step-counter">Step 1 / 4</span>
+            <button onclick="repeatAndListen()" class="text-xs text-slate-400 hover:text-white underline">🔊 Repeat Question</button>
           </div>
           <p id="kiosk-prompt-text" class="text-lg font-medium text-white leading-relaxed">
             Click "Activate Kiosk" to begin automated voice assistance.
           </p>
-          <p id="heard-transcript" class="text-xs text-slate-400 mt-3 italic min-h-[18px]"></p>
+          <p id="heard-transcript" class="text-xs text-emerald-300 mt-3 italic min-h-[18px]"></p>
         </div>
 
-        <!-- Dynamic Step Controls (Manual Fallbacks + Live State) -->
         <div id="step-workspace" class="space-y-4 no-print">
-          <!-- Step 1 Placeholder -->
           <div id="ui-step-1" class="text-center py-8 text-slate-400 text-sm">
             Place and hold your thumb on the left scanner pad (or toggle <strong>Simulate Continuous Hold</strong>) to unlock voice banking.
           </div>
 
-          <!-- Step 2: Account Lookup & Confirmation -->
           <div id="ui-step-2" class="hidden space-y-4">
-            <label class="block text-sm font-semibold text-slate-300">Speak Full Name or Select / Type Fallback:</label>
+            <label class="block text-sm font-semibold text-slate-300">Speak Full Name or Type Fallback:</label>
             <div class="flex gap-2">
               <input id="manual-name-input" type="text" placeholder="e.g., Drushya S N or Ramesh Kumar" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" />
               <button onclick="handleNameInput(document.getElementById('manual-name-input').value)" class="px-5 py-3 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400">
@@ -158,17 +151,16 @@
             </div>
             <div id="confirm-name-box" class="hidden bg-slate-800/80 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between">
               <div>
-                <p class="text-xs text-slate-400">Matched Account</p>
+                <p class="text-xs text-slate-400">Matched Account (Say "Yes" or "No")</p>
                 <p id="matched-account-display" class="font-bold text-base text-white"></p>
               </div>
               <div class="flex gap-2">
                 <button onclick="confirmMatchedName(true)" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-lg text-sm">Yes, Confirm</button>
-                <button onclick="confirmMatchedName(false)" class="px-4 py-2 bg-slate-700 text-white font-bold rounded-lg text-sm">Retry</button>
+                <button onclick="confirmMatchedName(false)" class="px-4 py-2 bg-slate-700 text-white font-bold rounded-lg text-sm">No, Retry</button>
               </div>
             </div>
           </div>
 
-          <!-- Step 3: Transaction Type -->
           <div id="ui-step-3" class="hidden space-y-4">
             <p class="text-sm font-semibold text-slate-300">Say "Deposit" or "Withdrawal", or tap below:</p>
             <div class="grid grid-cols-2 gap-4">
@@ -181,7 +173,6 @@
             </div>
           </div>
 
-          <!-- Step 4: Amount & Final Confirmation -->
           <div id="ui-step-4" class="hidden space-y-4">
             <label class="block text-sm font-semibold text-slate-300">State Amount in Rupees (₹) or Enter Manually:</label>
             <div class="flex gap-2">
@@ -193,8 +184,8 @@
             <div id="final-confirm-box" class="hidden bg-slate-800/80 border border-emerald-500/40 rounded-xl p-4 flex items-center justify-between">
               <p id="final-summary-text" class="text-sm font-semibold text-white"></p>
               <div class="flex gap-2">
-                <button onclick="finalizeSlip()" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-lg text-sm">Confirm &amp; Print</button>
-                <button onclick="abortSession('Transaction cancelled by user.')" class="px-4 py-2 bg-rose-600 text-white font-bold rounded-lg text-sm">Cancel</button>
+                <button onclick="finalizeSlip()" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-lg text-sm">Yes, Print</button>
+                <button onclick="retryAmount()" class="px-4 py-2 bg-slate-700 text-white font-bold rounded-lg text-sm">Change</button>
               </div>
             </div>
           </div>
@@ -227,7 +218,6 @@
             <div class="font-mono text-xs text-right" id="slip-ref"></div>
           </div>
 
-          <!-- Cryptographic Aadhaar e-Sign Stamp (No Cursive Signature) -->
           <div class="bg-slate-100 border border-slate-400 rounded-lg p-3 text-xs font-mono">
             <div class="flex items-center justify-between font-bold text-emerald-800 mb-1">
               <span>✔ CRYPTOGRAPHIC AADHAAR e-SIGN VERIFIED</span>
@@ -284,12 +274,6 @@
   </div>
 
   <script>
-    // ==========================================
-    // CONFIGURATION (Connect FastAPI backend later)
-    // ==========================================
-    const API_BASE_URL = ""; // Keep empty for standalone static demo; set to Render FastAPI URL later
-
-    // Default + LocalStorage Account Database
     const DEFAULT_ACCOUNTS = [
       { name: "Drushya S N", account: "7739104826" },
       { name: "Ramesh Kumar", account: "4092817365" },
@@ -298,128 +282,147 @@
 
     let accountsDB = JSON.parse(localStorage.getItem("kiosk_accounts_db")) || [...DEFAULT_ACCOUNTS];
 
-    // Kiosk State Machine
-    let kioskMode = "prototype"; // "prototype" | "user"
+    let kioskMode = "prototype";
     let hardwareReady = false;
     let isThumbHeld = false;
     let isSimHold = false;
-    let currentStep = 1; // 1: Biometric, 2: Name, 2.5: Confirm Name, 3: Tx Type, 4: Amount, 4.5: Final Confirm, 5: Done
+    let currentStep = 1;
     let lastSpokenPrompt = "";
 
-    let txState = {
-      matchedUser: null,
-      txType: null,
-      amount: null
-    };
+    let txState = { matchedUser: null, txType: null, amount: null };
 
     // ==========================================
-    // ECHO-PROOF CONTINUOUS VOICE ENGINE
+    // SINGLE-STREAM + TURN-BASED GATE VOICE ENGINE
+    // (Opens mic hardware ONCE so browser NEVER re-prompts)
     // ==========================================
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
-    let sessionMicEnabled = false;
-    let isKioskSpeaking = false;
+    let streamInitialized = false;
+    let isAcceptingUserAnswer = false; // Gate: TRUE only when waiting for user's reply
 
-    function initContinuousSpeech() {
+    function initSingleMicStream() {
       if (!SpeechRecognition) {
-        showBanner("Speech Recognition not supported in this browser. Use Chrome/Edge or manual inputs.", "bg-amber-600 text-white");
+        showBanner("Speech Recognition not supported in this browser. Use Chrome or Edge.", "bg-amber-600 text-white");
         return;
       }
+
       recognition = new SpeechRecognition();
-      recognition.continuous = false; // Single clean phrase per turn prevents echo buildup
+      recognition.continuous = true;       // Keeps the single permission grant alive forever
       recognition.interimResults = false;
       recognition.lang = "en-IN";
 
       recognition.onstart = () => {
-        updateMicIndicator(true);
+        streamInitialized = true;
       };
 
-      // Automatically re-open mic only when kiosk is NOT speaking
-      recognition.onend = () => {
-        updateMicIndicator(false);
-        if (sessionMicEnabled && !isKioskSpeaking) {
-          setTimeout(() => {
-            if (sessionMicEnabled && !isKioskSpeaking) {
-              try { recognition.start(); } catch (e) {}
-            }
-          }, 250);
-        }
+      recognition.onresult = (event) => {
+        // Ignore everything unless the kiosk just finished asking a question
+        if (!isAcceptingUserAnswer) return;
+
+        const transcript = event.results[event.results.length - 1][0].transcript.trim();
+        if (!transcript) return;
+
+        // Close gate immediately after capturing the user's single answer
+        isAcceptingUserAnswer = false;
+        updateMicUI(false);
+
+        document.getElementById("heard-transcript").textContent = `You said: "${transcript}"`;
+        routeVoiceCommand(transcript);
       };
 
       recognition.onerror = (event) => {
         if (event.error === "not-allowed") {
-          sessionMicEnabled = false;
-          showBanner("Microphone permission blocked. Allow mic access in browser site settings.", "bg-rose-600 text-white");
+          streamInitialized = false;
+          showBanner("Microphone permission blocked. Click the lock/tune icon in the address bar and set Microphone to Allow.", "bg-rose-600 text-white");
         }
       };
 
-      recognition.onresult = (event) => {
-        if (isKioskSpeaking) return;
-        const transcript = event.results[0][0].transcript.trim();
-        document.getElementById("heard-transcript").textContent = `Heard: "${transcript}"`;
-        routeVoiceCommand(transcript);
+      // Silently keep the stream alive if Chrome times out after long silence
+      recognition.onend = () => {
+        if (streamInitialized) {
+          try { recognition.start(); } catch (e) {}
+        }
       };
 
-      sessionMicEnabled = true;
+      try { recognition.start(); } catch (e) {}
     }
 
-    function speak(text) {
+    function speakOnly(text) {
       lastSpokenPrompt = text;
+      isAcceptingUserAnswer = false;
+      updateMicUI(false);
       document.getElementById("kiosk-prompt-text").textContent = text;
-
-      // 1. Completely stop mic while kiosk talks so it NEVER hears itself
-      isKioskSpeaking = true;
-      if (recognition) {
-        try { recognition.abort(); } catch (e) {}
-      }
-      updateMicIndicator(false);
-
       window.speechSynthesis.cancel();
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "en-IN";
-      utterance.rate = 0.98;
-
-      // 2. Wait 450ms after speech finishes for room echo to clear, then resume mic
-      const resumeListening = () => {
-        setTimeout(() => {
-          isKioskSpeaking = false;
-          if (sessionMicEnabled && recognition) {
-            try { recognition.start(); } catch (e) {}
-          }
-        }, 450);
-      };
-
-      utterance.onend = resumeListening;
-      utterance.onerror = resumeListening;
+      utterance.rate = 0.96;
       window.speechSynthesis.speak(utterance);
     }
 
-    function repeatLastPrompt() {
-      if (lastSpokenPrompt) speak(lastSpokenPrompt);
+    function speakAndListen(text) {
+      lastSpokenPrompt = text;
+      isAcceptingUserAnswer = false; // Gate closed while kiosk talks
+      updateMicUI(false);
+      document.getElementById("kiosk-prompt-text").textContent = text;
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-IN";
+      utterance.rate = 0.96;
+
+      utterance.onend = () => {
+        // Wait 400ms for speaker echo to clear, then open gate for user's answer
+        setTimeout(() => {
+          if (isThumbHeld && currentStep > 1 && currentStep < 5) {
+            isAcceptingUserAnswer = true;
+            updateMicUI(true);
+          }
+        }, 400);
+      };
+
+      window.speechSynthesis.speak(utterance);
     }
 
-    function updateMicIndicator(active) {
+    function repeatAndListen() {
+      if (!lastSpokenPrompt) return;
+      if (currentStep > 1 && currentStep < 5 && isThumbHeld) {
+        speakAndListen(lastSpokenPrompt);
+      } else {
+        speakOnly(lastSpokenPrompt);
+      }
+    }
+
+    function manualMicTrigger() {
+      if (isThumbHeld && currentStep > 1 && currentStep < 5) {
+        window.speechSynthesis.cancel();
+        isAcceptingUserAnswer = true;
+        updateMicUI(true);
+      }
+    }
+
+    function updateMicUI(listeningForUser) {
       const dot = document.getElementById("mic-dot");
       const label = document.getElementById("mic-status-text");
-      if (active) {
+      if (listeningForUser) {
         dot.className = "w-3 h-3 rounded-full bg-emerald-400 listening-pulse";
-        label.textContent = "Mic Live (Listening)";
+        label.textContent = "Your Turn — Speak Now";
         label.className = "text-xs font-bold text-emerald-400";
       } else {
         dot.className = "w-3 h-3 rounded-full bg-slate-600";
-        label.textContent = isKioskSpeaking ? "Mic Paused (Kiosk Speaking)" : "Mic Standby";
+        label.textContent = "Mic Gated (Kiosk Turn)";
         label.className = "text-xs font-medium text-slate-400";
       }
     }
 
     // ==========================================
-    // KIOSK ACTIVATION & HYBRID MODE SWITCHING
+    // ACTIVATION & HYBRID MODE
     // ==========================================
     function activateKiosk() {
       document.getElementById("activation-overlay").classList.add("hidden");
       renderAccountList();
-      initContinuousSpeech();
-      speak("Welcome to the VaaniBank Biometric Kiosk. Please place and hold your thumb on the scanner to begin.");
+      initSingleMicStream(); // Acquires permission ONCE right here
+      speakOnly("Welcome to VaaniBank Biometric Kiosk. Please place and hold your thumb on the scanner to begin.");
     }
 
     async function setKioskMode(mode) {
@@ -431,7 +434,7 @@
         btnProto.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition";
         btnUser.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition";
         hideBanner();
-        speak("Switched to Prototype Mode. Hold thumb pad to start.");
+        speakOnly("Switched to Prototype Mode. Hold thumb pad to start.");
       } else {
         btnUser.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 transition";
         btnProto.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition";
@@ -449,19 +452,19 @@
         if (text.includes("READY")) {
           hardwareReady = true;
           showBanner("UIDAI L1 Biometric Scanner Connected (READY).", "bg-emerald-600 text-white");
-          speak("Biometric scanner connected. Please place your thumb on the physical sensor.");
+          speakOnly("Biometric scanner connected. Please place your thumb on the physical sensor.");
         } else {
           throw new Error("NOTREADY");
         }
       } catch (err) {
         hardwareReady = false;
         showBanner("Device Not Connected: UIDAI L1 Biometric Scanner not detected on port 11100. Switch to Prototype Mode to test.", "bg-rose-600 text-white");
-        speak("Device not connected. Please plug in the biometric scanner or switch to Prototype Mode.");
+        speakOnly("Device not connected. Please plug in the biometric scanner or switch to Prototype Mode.");
       }
     }
 
     // ==========================================
-    // CONTINUOUS BIOMETRIC LOCK ("DEAD-MAN'S SWITCH")
+    // CONTINUOUS BIOMETRIC LOCK
     // ==========================================
     function startThumbHold(e) {
       if (e) e.preventDefault();
@@ -473,20 +476,19 @@
 
       if (currentStep === 1) {
         goToStep(2);
-        speak("Thumb verified. Please say your full name.");
+        speakAndListen("Thumb verified. Please say your full name.");
       }
     }
 
     function releaseThumbHold() {
-      if (isSimHold) return; // Locked via demo switch
+      if (isSimHold) return;
       if (!isThumbHeld) return;
 
       isThumbHeld = false;
       updateBiometricUI(false);
 
-      // Abort if transaction is in progress (Steps 2 to 4.5)
       if (currentStep > 1 && currentStep < 5) {
-        abortSession("Fingerprint Contact Lost — Session Terminated for Security.");
+        abortSession("Fingerprint contact lost. Session terminated for security.");
       }
     }
 
@@ -498,7 +500,7 @@
         isThumbHeld = false;
         updateBiometricUI(false);
         if (currentStep > 1 && currentStep < 5) {
-          abortSession("Fingerprint Contact Lost — Session Terminated for Security.");
+          abortSession("Fingerprint contact lost. Session terminated for security.");
         }
       }
     }
@@ -522,6 +524,8 @@
     }
 
     function abortSession(reason) {
+      isAcceptingUserAnswer = false;
+      updateMicUI(false);
       window.speechSynthesis.cancel();
       txState = { matchedUser: null, txType: null, amount: null };
       document.getElementById("sim-hold-toggle").checked = false;
@@ -530,65 +534,76 @@
       updateBiometricUI(false);
       showBanner(reason, "bg-rose-600 text-white");
       goToStep(1);
-      speak(`${reason} Please place your thumb on the scanner to start again.`);
+      speakOnly(`${reason} Please place your thumb on the scanner to start again.`);
     }
 
     // ==========================================
-    // VOICE ROUTING & STEP WORKFLOW
+    // TURN-BASED VOICE ROUTING & VERIFICATION
     // ==========================================
+    function isAffirmative(text) {
+      return /\b(yes|yeah|yep|confirm|correct|right|ok|okay|sure|proceed)\b/i.test(text);
+    }
+
+    function isNegative(text) {
+      return /\b(no|nope|wrong|retry|change|cancel|back|incorrect)\b/i.test(text);
+    }
+
     function routeVoiceCommand(spoken) {
       if (!isThumbHeld && currentStep < 5) return;
-      const lower = spoken.toLowerCase();
 
       if (currentStep === 2) {
         handleNameInput(spoken);
       } else if (currentStep === 2.5) {
-        if (lower.includes("yes") || lower.includes("confirm") || lower.includes("correct") || lower.includes("yeah")) {
+        if (isAffirmative(spoken)) {
           confirmMatchedName(true);
-        } else if (lower.includes("no") || lower.includes("retry") || lower.includes("wrong")) {
+        } else if (isNegative(spoken)) {
           confirmMatchedName(false);
+        } else {
+          speakAndListen(`Please say Yes to confirm ${txState.matchedUser.name}, or say No to try again.`);
         }
       } else if (currentStep === 3) {
-        if (lower.includes("deposit")) {
+        if (spoken.toLowerCase().includes("deposit")) {
           handleTransactionType("DEPOSIT");
-        } else if (lower.includes("withdraw")) {
+        } else if (spoken.toLowerCase().includes("withdraw")) {
           handleTransactionType("WITHDRAWAL");
         } else {
-          speak("Please say Deposit or Withdrawal.");
+          speakAndListen("I did not catch that. Please say Deposit or Withdrawal.");
+        }
+      } else if (currentStep === 3.5) {
+        if (isAffirmative(spoken)) {
+          confirmTransactionType(true);
+        } else if (isNegative(spoken)) {
+          confirmTransactionType(false);
+        } else {
+          speakAndListen(`You selected ${txState.txType}. Say Yes to confirm, or No to change.`);
         }
       } else if (currentStep === 4) {
-        const numeric = extractNumberFromSpeech(lower);
+        const numeric = extractNumberFromSpeech(spoken.toLowerCase());
         if (numeric && numeric > 0) {
           handleAmountInput(numeric);
         } else {
-          speak("I did not catch the amount. Please state the amount in rupees.");
+          speakAndListen("I did not catch the amount. Please say the amount in rupees.");
         }
       } else if (currentStep === 4.5) {
-        if (lower.includes("confirm") || lower.includes("yes") || lower.includes("print")) {
+        if (isAffirmative(spoken)) {
           finalizeSlip();
-        } else if (lower.includes("cancel") || lower.includes("no")) {
-          abortSession("Transaction cancelled.");
+        } else if (isNegative(spoken)) {
+          retryAmount();
+        } else {
+          speakAndListen(`Please say Yes to generate your ${txState.txType} slip for ${txState.amount} rupees, or say No to change.`);
         }
       }
     }
 
-    async function handleNameInput(rawName) {
+    function handleNameInput(rawName) {
       if (!rawName || !rawName.trim()) return;
       const query = rawName.trim().toLowerCase();
 
-      let found = null;
-      if (API_BASE_URL) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/api/lookup?name=${encodeURIComponent(query)}`);
-          if (res.ok) found = await res.json();
-        } catch (e) {}
-      } else {
-        found = accountsDB.find(acc =>
-          acc.name.toLowerCase() === query ||
-          acc.name.toLowerCase().includes(query) ||
-          query.includes(acc.name.toLowerCase())
-        );
-      }
+      const found = accountsDB.find(acc =>
+        acc.name.toLowerCase() === query ||
+        acc.name.toLowerCase().includes(query) ||
+        query.includes(acc.name.toLowerCase())
+      );
 
       if (found) {
         txState.matchedUser = found;
@@ -596,9 +611,9 @@
         const last4 = found.account.slice(-4);
         document.getElementById("matched-account-display").textContent = `${found.name} — Acct: ••••••${last4}`;
         document.getElementById("confirm-name-box").classList.remove("hidden");
-        speak(`I found ${found.name}, account ending in ${last4.split("").join(" ")}. Say Yes to confirm, or No to try again.`);
+        speakAndListen(`I heard ${found.name}, account ending in ${last4.split("").join(" ")}. Is that correct? Say Yes or No.`);
       } else {
-        speak(`I could not find ${rawName}. Please state your registered name again, or add it via Register Account.`);
+        speakAndListen(`I heard ${rawName}, which is not registered. Please say your registered full name again.`);
       }
     }
 
@@ -606,18 +621,29 @@
       document.getElementById("confirm-name-box").classList.add("hidden");
       if (isConfirmed) {
         goToStep(3);
-        speak("Account confirmed. Would you like to make a Deposit or a Withdrawal?");
+        speakAndListen("Account confirmed. Next question: Would you like to make a Deposit or a Withdrawal?");
       } else {
         txState.matchedUser = null;
         currentStep = 2;
-        speak("Okay, please state your full name again.");
+        speakAndListen("Okay, please state your full name again.");
       }
     }
 
     function handleTransactionType(type) {
       txState.txType = type;
-      goToStep(4);
-      speak(`${type.toLowerCase()} selected. Please state the amount in rupees.`);
+      currentStep = 3.5;
+      speakAndListen(`You chose ${type.toLowerCase()}. Is that correct? Say Yes or No.`);
+    }
+
+    function confirmTransactionType(isConfirmed) {
+      if (isConfirmed) {
+        goToStep(4);
+        speakAndListen(`${txState.txType.toLowerCase()} confirmed. Next question: How many rupees would you like to ${txState.txType.toLowerCase()}?`);
+      } else {
+        txState.txType = null;
+        currentStep = 3;
+        speakAndListen("Okay, please say Deposit or Withdrawal.");
+      }
     }
 
     function handleAmountInput(val) {
@@ -629,35 +655,26 @@
       const summary = `${txState.txType} of ₹${amt.toLocaleString("en-IN")} for ${txState.matchedUser.name}`;
       document.getElementById("final-summary-text").textContent = summary;
       document.getElementById("final-confirm-box").classList.remove("hidden");
-      speak(`Confirming ${txState.txType.toLowerCase()} of ${amt} rupees for ${txState.matchedUser.name}. Say Confirm to generate your slip, or Cancel to stop.`);
+      speakAndListen(`You entered ${amt} rupees for ${txState.txType.toLowerCase()}. Say Yes to print your slip, or No to change the amount.`);
+    }
+
+    function retryAmount() {
+      document.getElementById("final-confirm-box").classList.add("hidden");
+      txState.amount = null;
+      currentStep = 4;
+      speakAndListen("Okay, please state the amount in rupees again.");
     }
 
     async function finalizeSlip() {
+      isAcceptingUserAnswer = false;
+      updateMicUI(false);
       currentStep = 5;
       document.getElementById("step-counter").textContent = "Completed";
       document.getElementById("step-workspace").classList.add("hidden");
 
-      let refId = "UIDAI-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      let timestamp = new Date().toLocaleString("en-IN");
-      let hash = "";
-
-      if (API_BASE_URL) {
-        const res = await fetch(`${API_BASE_URL}/api/generate-slip`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            account: txState.matchedUser.account,
-            tx_type: txState.txType,
-            amount: txState.amount
-          })
-        });
-        const data = await res.json();
-        refId = data.reference_id;
-        hash = data.esign_hash;
-        timestamp = data.timestamp;
-      } else {
-        hash = await sha256Hex(`${txState.matchedUser.account}:${txState.amount}:${Date.now()}`);
-      }
+      const refId = "UIDAI-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const timestamp = new Date().toLocaleString("en-IN");
+      const hash = await sha256Hex(`${txState.matchedUser.account}:${txState.amount}:${Date.now()}`);
 
       document.getElementById("slip-tx-type").textContent = `${txState.txType} SLIP`;
       document.getElementById("slip-timestamp").textContent = timestamp;
@@ -668,10 +685,12 @@
       document.getElementById("slip-hash").textContent = `eSign Hash: ${hash}`;
 
       document.getElementById("printable-slip").classList.remove("hidden");
-      speak("Your cryptographic Aadhaar e-Sign slip has been generated. You may now release your thumb and collect your slip.");
+      speakOnly("Confirmed. Your cryptographic Aadhaar e-Sign slip is ready. You may now release your thumb and collect your slip.");
     }
 
     function resetAfterCompletion() {
+      isAcceptingUserAnswer = false;
+      updateMicUI(false);
       txState = { matchedUser: null, txType: null, amount: null };
       document.getElementById("sim-hold-toggle").checked = false;
       isSimHold = false;
@@ -680,12 +699,9 @@
       document.getElementById("printable-slip").classList.add("hidden");
       document.getElementById("step-workspace").classList.remove("hidden");
       goToStep(1);
-      speak("Ready for the next customer. Please place and hold your thumb on the scanner.");
+      speakOnly("Ready for the next customer. Please place and hold your thumb on the scanner.");
     }
 
-    // ==========================================
-    // UI HELPERS & ACCOUNT REGISTRATION MODAL
-    // ==========================================
     function goToStep(step) {
       currentStep = step;
       document.getElementById("step-counter").textContent = `Step ${Math.floor(step)} / 4`;
