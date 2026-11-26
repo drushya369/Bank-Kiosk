@@ -172,7 +172,7 @@
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
       <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Hands-free voice banking kiosk with phonetic name matching, spoken rupee recognition, continuous thumb lock, and SHA-256 verification.
+        Hands-free voice banking kiosk with echo-filtered listening, spoken rupee recognition, continuous thumb lock, and printable SHA-256 slips.
       </p>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
@@ -217,7 +217,7 @@
           <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
         </div>
         <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
-          Hold your thumb until slip generation finishes. The microphone turns ON and OFF automatically after every prompt.
+          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and turns ON only for your reply.
         </p>
 
         <div style="display:flex;justify-content:center;margin:14px 0;">
@@ -322,6 +322,10 @@
           </div>
 
           <div id="ui-step-4" style="display:none;">
+            <div id="amount-preview-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#334155;">
+              <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Recognized Amount</div>
+              <div id="amount-preview-value" class="mono" style="font-weight:800;font-size:20px;color:#34d399;"></div>
+            </div>
             <div id="final-confirm-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#10b981;">
               <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Final Confirmation — Say "Yes" or "No"</div>
               <div id="final-summary-text" style="font-weight:700;font-size:15px;margin-bottom:10px;"></div>
@@ -370,7 +374,7 @@
           </div>
 
           <div class="no-print" style="display:flex;gap:10px;margin-top:16px;">
-            <button type="button" onclick="window.print()" class="btn" style="flex:1;background:#0f172a;color:#fff;">🖨️ Print Slip</button>
+            <button type="button" onclick="triggerSlipPrint()" class="btn" style="flex:1;background:#0f172a;color:#fff;">🖨️ Print Slip</button>
             <button type="button" onclick="resetAfterCompletion()" class="btn btn-accent">Done / New User</button>
           </div>
         </div>
@@ -415,15 +419,17 @@
     let biometricPulseCount = 0;
     let txData = { matchedUser: null, txType: null, amount: null };
     let currentPromptText = "";
+    let lastSpokenAt = 0;
 
     // ==========================================
-    // AUTOMATIC HANDS-FREE TURN-LOCKED ENGINE
+    // AUTOMATIC ECHO-SAFE TURN-LOCKED ENGINE
     // ==========================================
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     let activeRec = null;
     let speakWatchdog = null;
     let restartTimer = null;
     let speechEndTimer = null;
+    let micOpenTimer = null;
     let isSpeaking = false;
     let isListening = false;
     let shouldListen = false;
@@ -458,6 +464,7 @@
       shouldListen = false;
       clearTimeout(restartTimer);
       clearTimeout(speechEndTimer);
+      clearTimeout(micOpenTimer);
       if (activeRec) {
         try {
           activeRec.onresult = null;
@@ -471,6 +478,21 @@
       }
       isListening = false;
       updateMicUI(isSpeaking ? "SPEAKING" : "OFF");
+    }
+
+    function isEchoOfPrompt(candidateText) {
+      const cand = (candidateText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+      const prompt = (currentPromptText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+      if (!cand || !prompt) return false;
+      if (Date.now() - lastSpokenAt < 1200) return true;
+      if (prompt.includes(cand) && cand.length >= 6) return true;
+      const candWords = cand.split(" ").filter((w) => w.length > 2);
+      const promptWords = new Set(prompt.split(" "));
+      if (candWords.length >= 2) {
+        const overlap = candWords.filter((w) => promptWords.has(w)).length;
+        if (overlap / candWords.length >= 0.75) return true;
+      }
+      return false;
     }
 
     function startListening() {
@@ -500,6 +522,15 @@
           if (handledResult || myTurn !== turnId || !isThumbHeld) return;
           const clean = (text || "").trim();
           if (!clean) return;
+
+          if (isEchoOfPrompt(clean)) {
+            handledResult = true;
+            stopListening();
+            shouldListen = true;
+            restartTimer = setTimeout(() => startListening(), 350);
+            return;
+          }
+
           handledResult = true;
           stopListening();
           document.getElementById("heard-transcript").textContent = `Heard: "${clean}"`;
@@ -521,7 +552,7 @@
           }
 
           turnTranscript = (finalTranscript || interim).trim();
-          if (turnTranscript) {
+          if (turnTranscript && !isEchoOfPrompt(turnTranscript)) {
             document.getElementById("heard-transcript").textContent = `Listening: "${turnTranscript}"`;
           }
 
@@ -614,20 +645,21 @@
         if (finished || myTurn !== turnId) return;
         finished = true;
         clearTimeout(speakWatchdog);
+        lastSpokenAt = Date.now();
         isSpeaking = false;
         updateMicUI("OFF");
 
         if (listenAfter && isThumbHeld && state !== "IDLE" && state !== "DONE" && state !== "BIO_SCANNING") {
-          setTimeout(() => {
+          micOpenTimer = setTimeout(() => {
             if (myTurn === turnId && isThumbHeld && !isSpeaking) {
               shouldListen = true;
               startListening();
             }
-          }, 550);
+          }, 1100);
         }
       };
 
-      const maxWait = Math.max(1500, Math.min(5500, text.length * 58 + 700));
+      const maxWait = Math.max(1800, Math.min(6500, text.length * 62 + 900));
       speakWatchdog = setTimeout(onDone, maxWait);
 
       setTimeout(() => {
@@ -635,7 +667,7 @@
         try {
           const utter = new SpeechSynthesisUtterance(text);
           utter.lang = "en-IN";
-          utter.rate = 1.02;
+          utter.rate = 1.0;
           window._utter = utter;
           utter.onend = onDone;
           utter.onerror = (ev) => {
@@ -646,7 +678,7 @@
         } catch (e) {
           onDone();
         }
-      }, 80);
+      }, 100);
     }
 
     function repeatCurrentQuestion() {
@@ -656,7 +688,7 @@
     }
 
     // ==========================================
-    // PRONUNCIATION, MONEY & INTENT PARSING
+    // PRONUNCIATION, AMOUNT & INTENT PARSING
     // ==========================================
     function phoneticNormalize(str) {
       return (str || "")
@@ -763,7 +795,6 @@
       const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
       const hasScale = tokens.some((t) => ["hundred", "thousand", "tausand", "savi", "saavira", "hajar", "lakh", "lac", "lakhs", "k"].includes(t));
 
-      // If user spoke individual digits like "five zero zero zero" without scale words
       if (!hasScale && tokens.length >= 2 && tokens.every((t) => /^\d$/.test(t) || (t in ones && ones[t] <= 9))) {
         const joined = tokens.map((t) => (/^\d$/.test(t) ? t : String(ones[t]))).join("");
         const parsedDigits = parseInt(joined, 10);
@@ -850,21 +881,21 @@
       if (state === "VERIFY_NAME") {
         if (isYes(clean)) confirmMatchedName(true);
         else if (isNo(clean)) confirmMatchedName(false);
-        else speak(`I heard ${clean}. Please say Yes to confirm ${txData.matchedUser.name}, or No to try again.`, true);
+        else speak(`Please say Yes to confirm ${txData.matchedUser.name}, or No to try again.`, true);
         return;
       }
 
       if (state === "ASK_TX") {
         if (/\bdeposit\b/i.test(clean)) selectTransactionType("DEPOSIT");
         else if (/\bwithdraw/i.test(clean)) selectTransactionType("WITHDRAWAL");
-        else speak(`I heard ${clean}. Please say Deposit or Withdrawal.`, true);
+        else speak(`Please say Deposit or Withdrawal.`, true);
         return;
       }
 
       if (state === "VERIFY_TX") {
         if (isYes(clean)) confirmTransactionType(true);
         else if (isNo(clean)) confirmTransactionType(false);
-        else speak(`I heard ${clean}. Please say Yes to confirm ${txData.txType}, or No to change.`, true);
+        else speak(`Please say Yes to confirm ${txData.txType}, or No to change.`, true);
         return;
       }
 
@@ -881,7 +912,7 @@
       if (state === "VERIFY_AMOUNT") {
         if (isYes(clean)) runMidSessionBiometricScan();
         else if (isNo(clean)) retryAmount();
-        else speak(`I heard ${clean}. Say Yes to authenticate and print slip, or No to change amount.`, true);
+        else speak(`Say Yes to authenticate ₹${txData.amount.toLocaleString("en-IN")} and print slip, or No to change amount.`, true);
       }
     }
 
@@ -923,21 +954,25 @@
       if (isNaN(amt) || amt <= 0) return;
       stopListening();
       txData.amount = amt;
-      document.getElementById("final-summary-text").textContent = `${txData.txType} of ₹${amt.toLocaleString("en-IN")} — ${txData.matchedUser.name}`;
+      const formattedAmt = `₹ ${amt.toLocaleString("en-IN")}`;
+      document.getElementById("amount-preview-value").textContent = formattedAmt;
+      document.getElementById("amount-preview-box").style.display = "block";
+      document.getElementById("final-summary-text").textContent = `${txData.txType} of ${formattedAmt} — ${txData.matchedUser.name}`;
       document.getElementById("final-confirm-box").style.display = "block";
       setKioskState("VERIFY_AMOUNT");
-      speak(`${amt} rupees for ${txData.txType.toLowerCase()}. Say Yes to print slip, or No to change.`, true);
+      speak(`Amount is ${amt} rupees for ${txData.txType.toLowerCase()}. Say Yes to authenticate and print slip, or No to change.`, true);
     }
 
     function retryAmount() {
       document.getElementById("final-confirm-box").style.display = "none";
+      document.getElementById("amount-preview-box").style.display = "none";
       txData.amount = null;
       setKioskState("ASK_AMOUNT");
       speak("Say the amount in rupees again.", true);
     }
 
     // ==========================================
-    // ACTIVATION & BIOMETRICS
+    // ACTIVATION, BIOMETRICS & PRINTING
     // ==========================================
     function activateKiosk() {
       document.getElementById("activation-overlay").style.display = "none";
@@ -1082,7 +1117,7 @@
       setKioskState("BIO_SCANNING");
       document.getElementById("bio-auth-status").textContent = "Scanning...";
       document.getElementById("bio-auth-status").style.color = "#fbbf24";
-      speak("Authenticating thumbprint. Keep holding still.", false);
+      speak("Authenticating thumbprint and preparing your slip.", false);
 
       setTimeout(async () => {
         if (!isThumbHeld) {
@@ -1093,6 +1128,12 @@
         document.getElementById("bio-auth-status").style.color = "#34d399";
         await generateFinalSlip();
       }, 1200);
+    }
+
+    function triggerSlipPrint() {
+      try {
+        window.print();
+      } catch (e) {}
     }
 
     async function generateFinalSlip() {
@@ -1135,7 +1176,12 @@
       document.getElementById("slip-ref").textContent = refId;
       document.getElementById("slip-hash").textContent = `eSign Hash: ${hash}`;
       document.getElementById("printable-slip").style.display = "block";
-      speak("Biometric authentication complete. Your slip is ready. You may release your thumb now.", false);
+      document.getElementById("heard-transcript").textContent = `Slip generated for ₹${txData.amount.toLocaleString("en-IN")} (${refId}).`;
+      speak("Authentication complete. Your slip is ready and opening for print. You may release your thumb now.", false);
+
+      setTimeout(() => {
+        if (state === "DONE") triggerSlipPrint();
+      }, 600);
     }
 
     function resetAfterCompletion() {
@@ -1144,6 +1190,7 @@
       clearTimeout(speakWatchdog);
       clearInterval(biometricHeartbeatTimer);
       txData = { matchedUser: null, txType: null, amount: null };
+      document.getElementById("amount-preview-box").style.display = "none";
       document.getElementById("sim-hold-toggle").checked = false;
       isSimHold = false;
       isThumbHeld = false;
@@ -1188,7 +1235,10 @@
 
       if (newState === "ASK_NAME") document.getElementById("confirm-name-box").style.display = "none";
       if (newState === "ASK_TX") document.getElementById("confirm-tx-box").style.display = "none";
-      if (newState === "ASK_AMOUNT") document.getElementById("final-confirm-box").style.display = "none";
+      if (newState === "ASK_AMOUNT") {
+        document.getElementById("amount-preview-box").style.display = "none";
+        document.getElementById("final-confirm-box").style.display = "none";
+      }
       hideBanner();
     }
 
