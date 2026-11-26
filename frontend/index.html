@@ -172,7 +172,7 @@
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
       <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        100% hands-free voice banking kiosk with automatic turn-locked microphone control, continuous thumb lock, and SHA-256 verification.
+        Hands-free voice banking kiosk with phonetic name matching, automatic turn-locked listening, continuous thumb lock, and SHA-256 verification.
       </p>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
@@ -423,6 +423,7 @@
     let activeRec = null;
     let speakWatchdog = null;
     let restartTimer = null;
+    let missedSpeechCount = 0;
     let isSpeaking = false;
     let isListening = false;
     let shouldListen = false;
@@ -438,7 +439,7 @@
       if (mode === "LISTENING") {
         dot.className = "mic-live";
         dot.style.background = "#10b981";
-        txt.textContent = "Mic ON — Listening automatically...";
+        txt.textContent = "Mic ON — Speak now...";
         txt.style.color = "#34d399";
       } else if (mode === "SPEAKING") {
         dot.className = "";
@@ -460,6 +461,8 @@
         try {
           activeRec.onresult = null;
           activeRec.onerror = null;
+          activeRec.onnomatch = null;
+          activeRec.onspeechend = null;
           activeRec.onend = null;
           activeRec.abort();
         } catch (e) {}
@@ -484,12 +487,24 @@
         rec.lang = "en-IN";
         rec.continuous = false;
         rec.interimResults = true;
-        rec.maxAlternatives = 3;
+        rec.maxAlternatives = 5;
         activeRec = rec;
         isListening = true;
         updateMicUI("LISTENING");
 
         let handledResult = false;
+        let latestTranscript = "";
+
+        const commitSpeech = (text) => {
+          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
+          const clean = (text || "").trim();
+          if (!clean) return;
+          handledResult = true;
+          missedSpeechCount = 0;
+          stopListening();
+          document.getElementById("heard-transcript").textContent = `Heard: "${clean}"`;
+          handleSpokenUtterance(clean);
+        };
 
         rec.onresult = (event) => {
           if (myTurn !== turnId || !isThumbHeld || handledResult) return;
@@ -497,35 +512,50 @@
           let finalTranscript = "";
 
           for (let i = event.resultIndex; i < event.results.length; i++) {
-            const part = event.results[i][0].transcript;
+            const alt0 = (event.results[i][0]?.transcript || "").trim();
             if (event.results[i].isFinal) {
-              finalTranscript += part + " ";
+              finalTranscript += alt0 + " ";
             } else {
-              interim += part;
+              interim = alt0;
             }
           }
 
-          const liveText = (finalTranscript || interim).trim();
-          if (liveText) {
-            document.getElementById("heard-transcript").textContent = `Listening: "${liveText}"`;
+          latestTranscript = (finalTranscript || interim).trim();
+          if (latestTranscript) {
+            document.getElementById("heard-transcript").textContent = `Listening: "${latestTranscript}"`;
           }
 
-          // Instant trigger on YES / NO / DEPOSIT / WITHDRAWAL even on interim results!
-          const quickIntent = detectQuickCommand(liveText);
+          const quickIntent = detectQuickCommand(latestTranscript);
           if (quickIntent && (state === "VERIFY_NAME" || state === "VERIFY_TX" || state === "VERIFY_AMOUNT" || state === "ASK_TX")) {
-            handledResult = true;
-            stopListening();
-            document.getElementById("heard-transcript").textContent = `Heard: "${liveText}"`;
-            handleSpokenUtterance(liveText);
+            commitSpeech(latestTranscript);
             return;
           }
 
           if (finalTranscript.trim()) {
-            handledResult = true;
-            const spoken = finalTranscript.trim();
-            stopListening();
-            document.getElementById("heard-transcript").textContent = `Heard: "${spoken}"`;
-            handleSpokenUtterance(spoken);
+            commitSpeech(finalTranscript.trim());
+          }
+        };
+
+        rec.onspeechend = () => {
+          setTimeout(() => {
+            if (!handledResult && latestTranscript && myTurn === turnId && isThumbHeld) {
+              commitSpeech(latestTranscript);
+            }
+          }, 180);
+        };
+
+        rec.onnomatch = () => {
+          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
+          handledResult = true;
+          missedSpeechCount++;
+          stopListening();
+          document.getElementById("heard-transcript").textContent = "Could not catch that — speaking prompt again...";
+          if (missedSpeechCount >= 2) {
+            missedSpeechCount = 0;
+            speak("I didn't catch that. Please speak clearly after the beep or prompt.", true);
+          } else {
+            shouldListen = true;
+            restartTimer = setTimeout(() => startListening(), 350);
           }
         };
 
@@ -538,18 +568,36 @@
             showBanner("Microphone permission blocked. Click the lock/tune icon in Chrome's address bar and allow Microphone.");
             return;
           }
-          if (shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
+          if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
+            missedSpeechCount++;
             updateMicUI("OFF");
-            restartTimer = setTimeout(() => startListening(), 350);
+            if (missedSpeechCount >= 2) {
+              missedSpeechCount = 0;
+              speak("I didn't hear you clearly. Please try saying it again.", true);
+            } else {
+              restartTimer = setTimeout(() => startListening(), 350);
+            }
           }
         };
 
         rec.onend = () => {
           isListening = false;
           activeRec = null;
+          if (!handledResult && latestTranscript && myTurn === turnId && isThumbHeld) {
+            commitSpeech(latestTranscript);
+            return;
+          }
           if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
+            missedSpeechCount++;
             updateMicUI("OFF");
-            restartTimer = setTimeout(() => startListening(), 300);
+            if (missedSpeechCount >= 2) {
+              missedSpeechCount = 0;
+              document.getElementById("heard-transcript").textContent = "Nothing heard — asking again...";
+              speak("I didn't hear anything. Please speak again.", true);
+            } else {
+              document.getElementById("heard-transcript").textContent = "Didn't catch that — listening again...";
+              restartTimer = setTimeout(() => startListening(), 300);
+            }
           } else if (!isSpeaking) {
             updateMicUI("OFF");
           }
@@ -568,6 +616,7 @@
     function retryListeningNow() {
       if (!isThumbHeld || state === "IDLE" || state === "DONE") return;
       turnId++;
+      missedSpeechCount = 0;
       stopListening();
       try { window.speechSynthesis.cancel(); } catch (e) {}
       isSpeaking = false;
@@ -600,7 +649,7 @@
               shouldListen = true;
               startListening();
             }
-          }, 550);
+          }, 500);
         }
       };
 
@@ -633,8 +682,77 @@
     }
 
     // ==========================================
-    // NATURAL VOICE & INTENT PROCESSING
+    // PRONUNCIATION & VOICE INTENT PROCESSING
     // ==========================================
+    function phoneticNormalize(str) {
+      return (str || "")
+        .toLowerCase()
+        .replace(/ph/g, "f")
+        .replace(/sh|ch/g, "s")
+        .replace(/th/g, "t")
+        .replace(/aa/g, "a")
+        .replace(/ee|ii/g, "i")
+        .replace(/oo|uu/g, "u")
+        .replace(/w/g, "v")
+        .replace(/[^a-z\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function bigramSimilarity(a, b) {
+      if (!a || !b) return 0;
+      if (a === b) return 1;
+      if (a.length < 2 || b.length < 2) return a[0] === b[0] ? 0.65 : 0;
+      const map = new Map();
+      for (let i = 0; i < a.length - 1; i++) {
+        const bg = a.slice(i, i + 2);
+        map.set(bg, (map.get(bg) || 0) + 1);
+      }
+      let hits = 0;
+      for (let i = 0; i < b.length - 1; i++) {
+        const bg = b.slice(i, i + 2);
+        const c = map.get(bg) || 0;
+        if (c > 0) {
+          map.set(bg, c - 1);
+          hits++;
+        }
+      }
+      return (2 * hits) / (a.length + b.length - 2);
+    }
+
+    function findBestAccountMatch(spokenQuery) {
+      const clean = (spokenQuery || "").toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+      const phonQuery = phoneticNormalize(clean);
+      if (!clean && !phonQuery) return null;
+
+      let bestAcc = null;
+      let bestScore = 0;
+
+      for (const acc of accountsDB) {
+        const target = acc.name.toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+        const phonTarget = phoneticNormalize(target);
+
+        if (target === clean || target.includes(clean) || clean.includes(target) || phonTarget === phonQuery) {
+          return acc;
+        }
+
+        const fullScore = Math.max(bigramSimilarity(clean, target), bigramSimilarity(phonQuery, phonTarget));
+        const qFirst = clean.split(" ")[0];
+        const tFirst = target.split(" ")[0];
+        const pqFirst = phonQuery.split(" ")[0];
+        const ptFirst = phonTarget.split(" ")[0];
+        const firstScore = Math.max(bigramSimilarity(qFirst, tFirst), bigramSimilarity(pqFirst, ptFirst));
+        const score = Math.max(fullScore, firstScore);
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestAcc = acc;
+        }
+      }
+
+      return bestScore >= 0.42 ? bestAcc : null;
+    }
+
     function isYes(t) {
       return /\b(yes|yeah|yep|yup|ya|confirm|correct|right|ok|okay|sure|proceed|true|haan|ha|ji)\b/i.test(t || "");
     }
@@ -770,24 +888,8 @@
     }
 
     // ==========================================
-    // ACCOUNT MATCHING & BIOMETRICS
+    // ACTIVATION & BIOMETRICS
     // ==========================================
-    function findBestAccountMatch(spokenQuery) {
-      const clean = (spokenQuery || "").toLowerCase().replace(/[^a-z\s]/g, "").trim();
-      if (!clean) return null;
-      for (const acc of accountsDB) {
-        const target = acc.name.toLowerCase().replace(/[^a-z\s]/g, "").trim();
-        if (target === clean || target.includes(clean) || clean.includes(target)) return acc;
-      }
-      const firstWord = clean.split(" ")[0];
-      if (firstWord.length >= 3) {
-        for (const acc of accountsDB) {
-          if (acc.name.toLowerCase().startsWith(firstWord)) return acc;
-        }
-      }
-      return null;
-    }
-
     function activateKiosk() {
       document.getElementById("activation-overlay").style.display = "none";
       renderAccountList();
@@ -840,6 +942,7 @@
 
       isThumbHeld = true;
       biometricPulseCount = 0;
+      missedSpeechCount = 0;
       warmUpBackend();
       updateBiometricUI(true);
 
@@ -907,6 +1010,7 @@
 
     function abortSession(reason) {
       turnId++;
+      missedSpeechCount = 0;
       stopListening();
       clearTimeout(speakWatchdog);
       clearInterval(biometricHeartbeatTimer);
@@ -989,6 +1093,7 @@
 
     function resetAfterCompletion() {
       turnId++;
+      missedSpeechCount = 0;
       stopListening();
       clearTimeout(speakWatchdog);
       clearInterval(biometricHeartbeatTimer);
