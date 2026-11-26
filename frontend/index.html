@@ -1,407 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VaaniBank — Voice-Assisted Biometric Banking Slip</title>
-  <style>
-    :root {
-      --bg: #050811;
-      --panel: #0f172a;
-      --panel-2: #080d1a;
-      --border: #1e293b;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #10b981;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 22px;
-    }
-    .subpanel {
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-    }
-    .btn {
-      border: 1px solid #334155;
-      background: #1e293b;
-      color: #f8fafc;
-      border-radius: 10px;
-      padding: 8px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn:hover { background: #334155; }
-    .btn-accent {
-      border: none;
-      background: var(--accent);
-      color: #052e16;
-      font-weight: 700;
-    }
-    .btn-accent:hover { background: #34d399; }
-    @keyframes pulseRing {
-      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-      70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    .mic-live {
-      background: #10b981 !important;
-      animation: pulseRing 1.4s infinite;
-    }
-    .thumb-circle {
-      width: 164px;
-      height: 164px;
-      border-radius: 9999px;
-      border: 3px solid #334155;
-      background: #070c18;
-      color: #e2e8f0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      cursor: pointer;
-      user-select: none;
-      transition: all 0.2s;
-    }
-    .thumb-circle.locked {
-      border-color: #10b981;
-      background: rgba(16, 185, 129, 0.14);
-      color: #6ee7b7;
-      box-shadow: 0 0 24px rgba(16, 185, 129, 0.18);
-    }
-    .thumb-icon {
-      width: 50px;
-      height: 50px;
-      max-width: 50px;
-      max-height: 50px;
-      flex-shrink: 0;
-    }
-    .grid-main {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 20px;
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 20px;
-    }
-    @media (min-width: 900px) {
-      .grid-main { grid-template-columns: 5fr 7fr; }
-    }
-    .steps-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      max-width: 1120px;
-      margin: 18px auto 0;
-      padding: 0 20px;
-    }
-    .step-pill {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 10px 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
-    }
-    .step-pill.active {
-      border-color: #10b981;
-      background: rgba(16, 185, 129, 0.12);
-      color: #a7f3d0;
-    }
-    .step-num {
-      width: 22px;
-      height: 22px;
-      border-radius: 9999px;
-      background: #1e293b;
-      color: #e2e8f0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-    .step-pill.active .step-num {
-      background: #10b981;
-      color: #052e16;
-    }
-    input[type="text"], input[type="number"] {
-      background: #060a14;
-      border: 1px solid #334155;
-      color: #f8fafc;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 14px;
-      width: 100%;
-    }
-    @media print {
-      body * { visibility: hidden; }
-      #printable-slip, #printable-slip * { visibility: visible; }
-      #printable-slip {
-        position: fixed; left: 0; top: 0; width: 100%;
-        background: #ffffff; color: #0f172a; padding: 24px;
-      }
-      .no-print { display: none !important; }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Start Overlay -->
-  <div id="activation-overlay" class="no-print" style="position:fixed;inset:0;background:rgba(5,8,17,0.96);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;">
-    <div class="panel" style="max-width:430px;width:100%;text-align:center;">
-      <div style="font-size:38px;margin-bottom:10px;">🏦</div>
-      <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
-      <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Instant hands-free voice banking kiosk with phonetic name matching, accurate rupee recognition, continuous thumb lock, and printable SHA-256 slips.
-      </p>
-      <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
-        Start Kiosk Session
-      </button>
-    </div>
-  </div>
-
-  <!-- Header -->
-  <header class="no-print" style="background:#0b1120;border-bottom:1px solid #1e293b;padding:14px 20px;">
-    <div style="max-width:1120px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
-      <div>
-        <div style="font-weight:800;font-size:17px;">Voice-Assisted Biometric Banking Slip</div>
-        <div style="font-size:12px;color:#94a3b8;">VaaniBank Hands-Free Accessible Terminal</div>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
-        <button onclick="toggleAccountModal(true)" class="btn">+ Accounts (<span id="account-count">3</span>)</button>
-        <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="btn btn-accent">Prototype Mode</button>
-        <button id="btn-user-mode" onclick="setKioskMode('user')" class="btn">User Mode (L1)</button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Alert Banner -->
-  <div id="alert-banner" class="no-print" style="display:none;padding:10px 20px;text-align:center;font-size:12px;font-weight:700;background:#991b1b;color:#fecaca;"></div>
-
-  <!-- 4-Step Progress -->
-  <div class="steps-grid no-print">
-    <div id="prog-1" class="step-pill active"><span class="step-num">1</span><span>Thumb Lock</span></div>
-    <div id="prog-2" class="step-pill"><span class="step-num">2</span><span>Account</span></div>
-    <div id="prog-3" class="step-pill"><span class="step-num">3</span><span>Type</span></div>
-    <div id="prog-4" class="step-pill"><span class="step-num">4</span><span>Amount &amp; Slip</span></div>
-  </div>
-
-  <!-- Main Columns -->
-  <main class="grid-main">
-
-    <!-- Left: Biometrics & Automatic Mic Status -->
-    <section class="panel no-print" style="display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-          <h2 style="margin:0;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#cbd5e1;">Biometric Thumb Lock</h2>
-          <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
-        </div>
-        <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
-          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and turns ON automatically after each prompt.
-        </p>
-
-        <div style="display:flex;justify-content:center;margin:14px 0;">
-          <button
-            id="thumb-pad"
-            type="button"
-            onmousedown="startThumbHold()"
-            ontouchstart="startThumbHold(event)"
-            onmouseup="releaseThumbHold()"
-            onmouseleave="releaseThumbHold()"
-            ontouchend="releaseThumbHold()"
-            class="thumb-circle">
-            <svg class="thumb-icon" id="thumb-svg" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
-            </svg>
-            <span id="thumb-label" style="font-size:11px;font-weight:700;text-align:center;padding:0 10px;">Press &amp; Hold Thumb</span>
-          </button>
-        </div>
-
-        <div class="subpanel" style="font-size:12px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <span style="color:#94a3b8;">Continuous Heartbeat</span>
-            <span id="bio-heartbeat-status" class="mono" style="color:#64748b;">Idle</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;border-top:1px solid #1e293b;padding-top:8px;">
-            <span style="color:#94a3b8;">Mid-Session Auth Scan</span>
-            <span id="bio-auth-status" class="mono" style="color:#64748b;">Pending</span>
-          </div>
-        </div>
-      </div>
-
-      <div style="border-top:1px solid #1e293b;padding-top:14px;display:flex;flex-direction:column;gap:10px;">
-        <label class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;">
-          <div>
-            <div style="font-size:12px;font-weight:700;">Lock Thumb Contact (Demo Hold)</div>
-            <div style="font-size:11px;color:#94a3b8;">Hands-free testing without holding mouse button</div>
-          </div>
-          <input id="sim-hold-toggle" type="checkbox" onchange="toggleSimulatedHold(this.checked)" style="width:18px;height:18px;cursor:pointer;" />
-        </label>
-
-        <div class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span id="mic-dot" style="width:10px;height:10px;border-radius:9999px;background:#475569;display:inline-block;"></span>
-            <span id="mic-status-text" style="font-size:12px;font-weight:600;color:#94a3b8;">Auto-Mic Standby</span>
-          </div>
-          <button type="button" onclick="retryListeningNow()" class="btn" style="padding:5px 10px;font-size:11px;">↻ Re-listen</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Right: Hands-Free Voice Prompt & Slip -->
-    <section class="panel" style="display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
-      <div>
-        <div class="subpanel no-print" style="margin-bottom:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-            <span id="step-counter" style="font-size:11px;font-weight:700;text-transform:uppercase;color:#34d399;">Step 1 / 4 — Waiting for Thumb</span>
-            <button type="button" onclick="repeatCurrentQuestion()" class="btn" style="padding:5px 10px;font-size:12px;">🔊 Repeat</button>
-          </div>
-          <div id="kiosk-prompt-text" style="font-size:19px;font-weight:700;line-height:1.4;">
-            Click "Start Kiosk Session" to begin.
-          </div>
-          <div id="heard-transcript" style="font-size:12px;color:#6ee7b7;margin-top:8px;min-height:18px;"></div>
-        </div>
-
-        <div id="step-workspace" class="no-print">
-          <div id="ui-step-1" class="subpanel" style="text-align:center;padding:28px;">
-            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Place and hold your thumb to start</div>
-            <div style="font-size:12px;color:#94a3b8;">Everything after thumb lock runs automatically by voice.</div>
-          </div>
-
-          <div id="ui-step-2" style="display:none;">
-            <div id="confirm-name-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#10b981;">
-              <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Closest Account Matched — Say "Yes" or "No"</div>
-              <div id="matched-account-display" style="font-weight:700;font-size:15px;margin-bottom:10px;"></div>
-              <div style="display:flex;gap:8px;">
-                <button type="button" onclick="confirmMatchedName(true)" class="btn btn-accent">Yes</button>
-                <button type="button" onclick="confirmMatchedName(false)" class="btn">No</button>
-              </div>
-            </div>
-            <details style="font-size:12px;color:#94a3b8;">
-              <summary style="cursor:pointer;">Optional Accessibility Keyboard Input</summary>
-              <div style="display:flex;gap:8px;margin-top:8px;">
-                <input id="manual-name-input" type="text" placeholder="Type name only if mic is unavailable" />
-                <button type="button" onclick="handleManualInput(document.getElementById('manual-name-input').value)" class="btn btn-accent">Go</button>
-              </div>
-            </details>
-          </div>
-
-          <div id="ui-step-3" style="display:none;">
-            <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">Say "Deposit" or "Withdrawal"</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <button type="button" onclick="selectTransactionType('DEPOSIT')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#10b981;color:#6ee7b7;">⬇️ DEPOSIT</button>
-              <button type="button" onclick="selectTransactionType('WITHDRAWAL')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#f59e0b;color:#fcd34d;">⬆️ WITHDRAWAL</button>
-            </div>
-            <div id="confirm-tx-box" class="subpanel" style="display:none;margin-top:12px;border-color:#10b981;">
-              <div id="tx-verify-display" style="font-weight:700;margin-bottom:10px;"></div>
-              <div style="display:flex;gap:8px;">
-                <button type="button" onclick="confirmTransactionType(true)" class="btn btn-accent">Yes</button>
-                <button type="button" onclick="confirmTransactionType(false)" class="btn">No</button>
-              </div>
-            </div>
-          </div>
-
-          <div id="ui-step-4" style="display:none;">
-            <div id="amount-preview-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#334155;">
-              <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Recognized Amount</div>
-              <div id="amount-preview-value" class="mono" style="font-weight:800;font-size:20px;color:#34d399;"></div>
-            </div>
-            <div id="final-confirm-box" class="subpanel" style="display:none;margin-bottom:12px;border-color:#10b981;">
-              <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Final Confirmation — Say "Yes" or "No"</div>
-              <div id="final-summary-text" style="font-weight:700;font-size:15px;margin-bottom:10px;"></div>
-              <div style="display:flex;gap:8px;">
-                <button type="button" onclick="runMidSessionBiometricScan()" class="btn btn-accent">Yes, Authenticate &amp; Print</button>
-                <button type="button" onclick="retryAmount()" class="btn">No</button>
-              </div>
-            </div>
-            <details style="font-size:12px;color:#94a3b8;">
-              <summary style="cursor:pointer;">Optional Accessibility Number Input</summary>
-              <div style="display:flex;gap:8px;margin-top:8px;">
-                <input id="manual-amount-input" type="number" placeholder="Type rupees only if mic is unavailable" class="mono" />
-                <button type="button" onclick="handleManualInput(document.getElementById('manual-amount-input').value)" class="btn btn-accent">Go</button>
-              </div>
-            </details>
-          </div>
-        </div>
-
-        <!-- Printable Slip -->
-        <div id="printable-slip" style="display:none;background:#ffffff;color:#0f172a;border-radius:16px;padding:22px;margin-top:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px dashed #cbd5e1;padding-bottom:12px;margin-bottom:16px;">
-            <div>
-              <div style="font-weight:800;font-size:18px;">VAANIBANK INDIA LTD.</div>
-              <div style="font-size:12px;color:#64748b;">Voice-Assisted Biometric Banking Slip</div>
-            </div>
-            <div style="text-align:right;font-size:12px;">
-              <div id="slip-tx-type" style="font-weight:800;background:#0f172a;color:#fff;padding:4px 8px;border-radius:6px;display:inline-block;">DEPOSIT SLIP</div>
-              <div id="slip-timestamp" style="color:#64748b;margin-top:4px;"></div>
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:14px;margin-bottom:16px;">
-            <div style="color:#64748b;">Account Holder</div>
-            <div id="slip-name" style="font-weight:700;text-align:right;"></div>
-            <div style="color:#64748b;">Account Number</div>
-            <div id="slip-account" class="mono" style="font-weight:700;text-align:right;"></div>
-            <div style="color:#64748b;">Amount</div>
-            <div id="slip-amount" style="font-weight:800;font-size:18px;color:#047857;text-align:right;"></div>
-            <div style="color:#64748b;">Reference ID</div>
-            <div id="slip-ref" class="mono" style="font-size:12px;text-align:right;"></div>
-          </div>
-
-          <div class="mono" style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;font-size:11px;">
-            <div style="font-weight:700;color:#047857;margin-bottom:4px;">✔ CRYPTOGRAPHIC BIOMETRIC e-SIGN VERIFIED</div>
-            <div id="slip-hash" style="word-break:break-all;color:#334155;"></div>
-          </div>
-
-          <div class="no-print" style="display:flex;gap:10px;margin-top:16px;">
-            <button type="button" onclick="triggerSlipPrint()" class="btn" style="flex:1;background:#0f172a;color:#fff;">🖨️ Print Slip</button>
-            <button type="button" onclick="resetAfterCompletion()" class="btn btn-accent">Done / New User</button>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Accounts Modal -->
-  <div id="account-modal" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(5,8,17,0.85);z-index:40;align-items:center;justify-content:center;padding:16px;">
-    <div class="panel" style="max-width:420px;width:100%;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h3 style="margin:0;font-size:16px;font-weight:700;">Register Demo Bank Account</h3>
-        <button type="button" onclick="toggleAccountModal(false)" class="btn" style="padding:4px 10px;">✕</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
-        <input id="new-acc-name" type="text" placeholder="Customer Full Name (e.g., Ananya Sharma)" />
-        <div style="display:flex;gap:8px;">
-          <input id="new-acc-num" type="text" placeholder="10-digit account number" class="mono" />
-          <button type="button" onclick="generateRandomAccountNum()" class="btn">Auto</button>
-        </div>
-        <button type="button" onclick="addNewAccount()" class="btn btn-accent">Save Account</button>
-      </div>
-      <ul id="registered-accounts-list" style="list-style:none;padding:0;margin:0;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-size:12px;"></ul>
-    </div>
-  </div>
-
-  <script>
+<script>
     const BACKEND_API_URL = "https://bank-kiosk-api.onrender.com";
     const DEFAULT_ACCOUNTS = [
       { name: "Drushya S N", account: "7739104826" },
@@ -419,11 +16,8 @@
     let biometricPulseCount = 0;
     let txData = { matchedUser: null, txType: null, amount: null };
     let currentPromptText = "";
-    let lastSpokenAt = 0;
+    let lastSpokeAt = 0;
 
-    // ==========================================
-    // INSTANT HANDS-FREE SPEECH ENGINE
-    // ==========================================
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     let activeRec = null;
     let speakWatchdog = null;
@@ -442,6 +36,7 @@
     function updateMicUI(mode) {
       const dot = document.getElementById("mic-dot");
       const txt = document.getElementById("mic-status-text");
+      if (!dot || !txt) return;
       if (mode === "LISTENING") {
         dot.className = "mic-live";
         dot.style.background = "#10b981";
@@ -480,16 +75,16 @@
       updateMicUI(isSpeaking ? "SPEAKING" : "OFF");
     }
 
-    function isPromptEcho(text) {
-      if (Date.now() - lastSpokenAt > 600) return false;
+    function isEchoText(text) {
+      if (Date.now() - lastSpokeAt > 500) return false;
       const cand = (text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
       const prompt = (currentPromptText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-      return Boolean(cand && prompt && prompt.includes(cand) && cand.length >= 6);
+      return Boolean(cand && prompt && cand.length >= 5 && prompt.includes(cand));
     }
 
     function startListening() {
       if (!SpeechRec) {
-        showBanner("SpeechRecognition is not available in this browser. Please use Google Chrome.");
+        showBanner("SpeechRecognition is not supported in this browser. Use Google Chrome.");
         return;
       }
       if (isSpeaking || !shouldListen || !isThumbHeld || isListening) return;
@@ -501,7 +96,7 @@
         rec.lang = "en-IN";
         rec.continuous = false;
         rec.interimResults = true;
-        rec.maxAlternatives = 5;
+        rec.maxAlternatives = 3;
         activeRec = rec;
         isListening = true;
         updateMicUI("LISTENING");
@@ -513,7 +108,7 @@
           if (handledResult || myTurn !== turnId || !isThumbHeld) return;
           const clean = (text || "").trim();
           if (!clean) return;
-          if (isPromptEcho(clean)) {
+          if (isEchoText(clean)) {
             handledResult = true;
             stopListening();
             shouldListen = true;
@@ -536,7 +131,7 @@
             else interim = alt0;
           }
           turnTranscript = (finalTranscript || interim).trim();
-          if (turnTranscript && !isPromptEcho(turnTranscript)) {
+          if (turnTranscript && !isEchoText(turnTranscript)) {
             document.getElementById("heard-transcript").textContent = `Listening: "${turnTranscript}"`;
           }
           if (finalTranscript.trim()) {
@@ -570,7 +165,7 @@
             return;
           }
           if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
-            speak("I couldn't hear you clearly. Please speak again.", true);
+            speak(`Speech error (${ev.error}). Please speak again.`, true);
           }
         };
 
@@ -667,9 +262,6 @@
       speak(currentPromptText, shouldListenAfter);
     }
 
-    // ==========================================
-    // NAME, EXACT AMOUNT & INTENT HANDLING
-    // ==========================================
     function phoneticNormalize(str) {
       return (str || "")
         .toLowerCase()
@@ -938,8 +530,10 @@
       stopListening();
       txData.amount = amt;
       const formattedAmt = `₹ ${amt.toLocaleString("en-IN")}`;
-      document.getElementById("amount-preview-value").textContent = formattedAmt;
-      document.getElementById("amount-preview-box").style.display = "block";
+      const previewVal = document.getElementById("amount-preview-value");
+      const previewBox = document.getElementById("amount-preview-box");
+      if (previewVal) previewVal.textContent = formattedAmt;
+      if (previewBox) previewBox.style.display = "block";
       document.getElementById("final-summary-text").textContent = `${txData.txType} of ${formattedAmt} — ${txData.matchedUser.name}`;
       document.getElementById("final-confirm-box").style.display = "block";
       setKioskState("VERIFY_AMOUNT");
@@ -948,15 +542,13 @@
 
     function retryAmount() {
       document.getElementById("final-confirm-box").style.display = "none";
-      document.getElementById("amount-preview-box").style.display = "none";
+      const previewBox = document.getElementById("amount-preview-box");
+      if (previewBox) previewBox.style.display = "none";
       txData.amount = null;
       setKioskState("ASK_AMOUNT");
       speak("Say the exact amount in rupees again.", true);
     }
 
-    // ==========================================
-    // ACTIVATION, BIOMETRICS & PRINTING
-    // ==========================================
     function activateKiosk() {
       document.getElementById("activation-overlay").style.display = "none";
       renderAccountList();
@@ -1173,7 +765,8 @@
       clearTimeout(speakWatchdog);
       clearInterval(biometricHeartbeatTimer);
       txData = { matchedUser: null, txType: null, amount: null };
-      document.getElementById("amount-preview-box").style.display = "none";
+      const previewBox = document.getElementById("amount-preview-box");
+      if (previewBox) previewBox.style.display = "none";
       document.getElementById("sim-hold-toggle").checked = false;
       isSimHold = false;
       isThumbHeld = false;
@@ -1219,7 +812,8 @@
       if (newState === "ASK_NAME") document.getElementById("confirm-name-box").style.display = "none";
       if (newState === "ASK_TX") document.getElementById("confirm-tx-box").style.display = "none";
       if (newState === "ASK_AMOUNT") {
-        document.getElementById("amount-preview-box").style.display = "none";
+        const previewBox = document.getElementById("amount-preview-box");
+        if (previewBox) previewBox.style.display = "none";
         document.getElementById("final-confirm-box").style.display = "none";
       }
       hideBanner();
@@ -1278,5 +872,3 @@
       return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
     }
   </script>
-</body>
-</html>
