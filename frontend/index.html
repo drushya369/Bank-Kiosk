@@ -172,7 +172,7 @@
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
       <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Hands-free voice banking kiosk powered by Gemini audio parsing, continuous thumb lock, and printable SHA-256 slips.
+        Instant hands-free voice banking kiosk with phonetic name matching, accurate rupee recognition, continuous thumb lock, and printable SHA-256 slips.
       </p>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
@@ -209,7 +209,7 @@
   <!-- Main Columns -->
   <main class="grid-main">
 
-    <!-- Left: Biometrics & Automatic Gemini Mic Status -->
+    <!-- Left: Biometrics & Automatic Mic Status -->
     <section class="panel no-print" style="display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
@@ -217,7 +217,7 @@
           <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
         </div>
         <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
-          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and records your reply for Gemini.
+          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and turns ON automatically after each prompt.
         </p>
 
         <div style="display:flex;justify-content:center;margin:14px 0;">
@@ -261,7 +261,7 @@
         <div class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span id="mic-dot" style="width:10px;height:10px;border-radius:9999px;background:#475569;display:inline-block;"></span>
-            <span id="mic-status-text" style="font-size:12px;font-weight:600;color:#94a3b8;">Gemini Mic Standby</span>
+            <span id="mic-status-text" style="font-size:12px;font-weight:600;color:#94a3b8;">Auto-Mic Standby</span>
           </div>
           <button type="button" onclick="retryListeningNow()" class="btn" style="padding:5px 10px;font-size:11px;">↻ Re-listen</button>
         </div>
@@ -285,7 +285,7 @@
         <div id="step-workspace" class="no-print">
           <div id="ui-step-1" class="subpanel" style="text-align:center;padding:28px;">
             <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Place and hold your thumb to start</div>
-            <div style="font-size:12px;color:#94a3b8;">Everything after thumb lock runs automatically by voice through Gemini.</div>
+            <div style="font-size:12px;color:#94a3b8;">Everything after thumb lock runs automatically by voice.</div>
           </div>
 
           <div id="ui-step-2" style="display:none;">
@@ -419,51 +419,24 @@
     let biometricPulseCount = 0;
     let txData = { matchedUser: null, txType: null, amount: null };
     let currentPromptText = "";
+    let lastSpokenAt = 0;
 
     // ==========================================
-    // GEMINI AUDIO TURN ENGINE (HANDS-FREE)
+    // INSTANT HANDS-FREE SPEECH ENGINE
     // ==========================================
-    let audioStream = null;
-    let mediaRecorder = null;
-    let recordTimer = null;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let activeRec = null;
     let speakWatchdog = null;
+    let restartTimer = null;
+    let speechEndTimer = null;
     let micOpenTimer = null;
     let isSpeaking = false;
-    let isRecording = false;
+    let isListening = false;
     let shouldListen = false;
     let turnId = 0;
 
     function warmUpBackend() {
       fetch(`${BACKEND_API_URL}/`, { cache: "no-store" }).catch(() => {});
-    }
-
-    async function ensureMicStream() {
-      if (audioStream && audioStream.active) return audioStream;
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
-      try {
-        audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-        });
-        return audioStream;
-      } catch (e) {
-        updateMicUI("OFF");
-        showBanner("Microphone permission blocked. Allow Microphone in Chrome site settings.");
-        return null;
-      }
-    }
-
-    function pickSupportedMimeType() {
-      const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
-      for (const t of types) {
-        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
-      }
-      return "";
-    }
-
-    function getListenWindowMs() {
-      if (state === "VERIFY_NAME" || state === "VERIFY_TX" || state === "VERIFY_AMOUNT") return 2600;
-      if (state === "ASK_TX") return 2800;
-      return 3600;
     }
 
     function updateMicUI(mode) {
@@ -479,127 +452,150 @@
         dot.style.background = "#f59e0b";
         txt.textContent = "Mic OFF (Kiosk speaking)";
         txt.style.color = "#fbbf24";
-      } else if (mode === "PROCESSING") {
-        dot.className = "";
-        dot.style.background = "#38bdf8";
-        txt.textContent = "Gemini analyzing voice...";
-        txt.style.color = "#38bdf8";
       } else {
         dot.className = "";
         dot.style.background = "#475569";
-        txt.textContent = "Gemini Mic Standby";
+        txt.textContent = "Auto-Mic Standby";
         txt.style.color = "#94a3b8";
       }
     }
 
     function stopListening() {
       shouldListen = false;
-      clearTimeout(recordTimer);
+      clearTimeout(restartTimer);
+      clearTimeout(speechEndTimer);
       clearTimeout(micOpenTimer);
-      if (mediaRecorder) {
+      if (activeRec) {
         try {
-          mediaRecorder.onstop = null;
-          if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
+          activeRec.onresult = null;
+          activeRec.onerror = null;
+          activeRec.onnomatch = null;
+          activeRec.onspeechend = null;
+          activeRec.onend = null;
+          activeRec.abort();
         } catch (e) {}
-        mediaRecorder = null;
+        activeRec = null;
       }
-      isRecording = false;
+      isListening = false;
       updateMicUI(isSpeaking ? "SPEAKING" : "OFF");
     }
 
-    async function startListening() {
-      if (isSpeaking || !shouldListen || !isThumbHeld || isRecording) return;
-      if (state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") return;
+    function isPromptEcho(text) {
+      if (Date.now() - lastSpokenAt > 600) return false;
+      const cand = (text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+      const prompt = (currentPromptText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+      return Boolean(cand && prompt && prompt.includes(cand) && cand.length >= 6);
+    }
 
-      const stream = await ensureMicStream();
-      if (!stream || isSpeaking || !shouldListen || !isThumbHeld) return;
+    function startListening() {
+      if (!SpeechRec) {
+        showBanner("SpeechRecognition is not available in this browser. Please use Google Chrome.");
+        return;
+      }
+      if (isSpeaking || !shouldListen || !isThumbHeld || isListening) return;
+      if (state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") return;
 
       const myTurn = turnId;
       try {
-        const mimeType = pickSupportedMimeType();
-        const chunks = [];
-        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-
-        mediaRecorder.ondataavailable = (ev) => {
-          if (ev.data && ev.data.size > 0) chunks.push(ev.data);
-        };
-
-        mediaRecorder.onstop = async () => {
-          clearTimeout(recordTimer);
-          isRecording = false;
-          const keepListening = shouldListen;
-          shouldListen = false;
-
-          const rawType = mediaRecorder?.mimeType || "audio/webm";
-          const cleanType = rawType.split(";")[0].trim() || "audio/webm";
-          const blob = new Blob(chunks, { type: cleanType });
-          mediaRecorder = null;
-
-          if (!isThumbHeld || myTurn !== turnId || state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") {
-            updateMicUI("OFF");
-            return;
-          }
-
-          if (!keepListening || blob.size < 350) {
-            updateMicUI("OFF");
-            speak("I didn't hear anything. Please speak again clearly.", true);
-            return;
-          }
-
-          await sendClipToGemini(blob, cleanType, myTurn);
-        };
-
-        isRecording = true;
+        const rec = new SpeechRec();
+        rec.lang = "en-IN";
+        rec.continuous = false;
+        rec.interimResults = true;
+        rec.maxAlternatives = 5;
+        activeRec = rec;
+        isListening = true;
         updateMicUI("LISTENING");
-        document.getElementById("heard-transcript").textContent = "Listening...";
-        mediaRecorder.start();
 
-        recordTimer = setTimeout(() => {
-          if (mediaRecorder && mediaRecorder.state === "recording") {
-            try { mediaRecorder.stop(); } catch (e) {}
+        let handledResult = false;
+        let turnTranscript = "";
+
+        const commitSpeech = (text) => {
+          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
+          const clean = (text || "").trim();
+          if (!clean) return;
+          if (isPromptEcho(clean)) {
+            handledResult = true;
+            stopListening();
+            shouldListen = true;
+            restartTimer = setTimeout(() => startListening(), 250);
+            return;
           }
-        }, getListenWindowMs());
+          handledResult = true;
+          stopListening();
+          document.getElementById("heard-transcript").textContent = `Heard: "${clean}"`;
+          handleSpokenUtterance(clean);
+        };
+
+        rec.onresult = (event) => {
+          if (myTurn !== turnId || !isThumbHeld || handledResult) return;
+          let interim = "";
+          let finalTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const alt0 = (event.results[i][0]?.transcript || "").trim();
+            if (event.results[i].isFinal) finalTranscript += alt0 + " ";
+            else interim = alt0;
+          }
+          turnTranscript = (finalTranscript || interim).trim();
+          if (turnTranscript && !isPromptEcho(turnTranscript)) {
+            document.getElementById("heard-transcript").textContent = `Listening: "${turnTranscript}"`;
+          }
+          if (finalTranscript.trim()) {
+            commitSpeech(finalTranscript.trim());
+          }
+        };
+
+        rec.onspeechend = () => {
+          clearTimeout(speechEndTimer);
+          speechEndTimer = setTimeout(() => {
+            if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
+              commitSpeech(turnTranscript);
+            }
+          }, 350);
+        };
+
+        rec.onnomatch = () => {
+          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
+          handledResult = true;
+          stopListening();
+          speak("I didn't catch that. Please say it again clearly.", true);
+        };
+
+        rec.onerror = (ev) => {
+          isListening = false;
+          activeRec = null;
+          if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+            shouldListen = false;
+            updateMicUI("OFF");
+            showBanner("Microphone permission blocked. Allow Microphone in Chrome site settings.");
+            return;
+          }
+          if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
+            speak("I couldn't hear you clearly. Please speak again.", true);
+          }
+        };
+
+        rec.onend = () => {
+          isListening = false;
+          activeRec = null;
+          if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
+            clearTimeout(speechEndTimer);
+            commitSpeech(turnTranscript);
+            return;
+          }
+          if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
+            speak("I didn't hear anything. Please speak again.", true);
+          } else if (!isSpeaking) {
+            updateMicUI("OFF");
+          }
+        };
+
+        rec.start();
       } catch (e) {
-        isRecording = false;
-        updateMicUI("OFF");
-      }
-    }
-
-    async function sendClipToGemini(audioBlob, mimeType, myTurn) {
-      updateMicUI("PROCESSING");
-      document.getElementById("heard-transcript").textContent = "Gemini analyzing your voice...";
-
-      const controller = new AbortController();
-      const netTimer = setTimeout(() => controller.abort(), 20000);
-
-      try {
-        const formData = new FormData();
-        const ext = mimeType.includes("mp4") ? "mp4" : "webm";
-        formData.append("audio", audioBlob, `turn.${ext}`);
-        formData.append("step_state", state);
-        formData.append("context_info", JSON.stringify(txData));
-
-        const res = await fetch(`${BACKEND_API_URL}/api/turn`, {
-          method: "POST",
-          body: formData,
-          signal: controller.signal
-        });
-        clearTimeout(netTimer);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-        if (!isThumbHeld || myTurn !== turnId || state === "IDLE" || state === "DONE") {
-          updateMicUI("OFF");
-          return;
+        isListening = false;
+        activeRec = null;
+        if (shouldListen && isThumbHeld && myTurn === turnId) {
+          restartTimer = setTimeout(() => startListening(), 400);
         }
-
-        updateMicUI("OFF");
-        await handleGeminiResult(data);
-      } catch (err) {
-        clearTimeout(netTimer);
-        updateMicUI("OFF");
-        document.getElementById("heard-transcript").textContent = "Gemini voice check delayed — asking again...";
-        speak("I couldn't process that clearly. Please speak again.", true);
       }
     }
 
@@ -629,6 +625,7 @@
         if (finished || myTurn !== turnId) return;
         finished = true;
         clearTimeout(speakWatchdog);
+        lastSpokenAt = Date.now();
         isSpeaking = false;
         updateMicUI("OFF");
 
@@ -638,11 +635,11 @@
               shouldListen = true;
               startListening();
             }
-          }, 650);
+          }, 450);
         }
       };
 
-      const maxWait = Math.max(1600, Math.min(6000, text.length * 60 + 800));
+      const maxWait = Math.max(1500, Math.min(5500, text.length * 58 + 700));
       speakWatchdog = setTimeout(onDone, maxWait);
 
       setTimeout(() => {
@@ -650,7 +647,7 @@
         try {
           const utter = new SpeechSynthesisUtterance(text);
           utter.lang = "en-IN";
-          utter.rate = 1.0;
+          utter.rate = 1.02;
           window._utter = utter;
           utter.onend = onDone;
           utter.onerror = (ev) => {
@@ -661,7 +658,7 @@
         } catch (e) {
           onDone();
         }
-      }, 100);
+      }, 80);
     }
 
     function repeatCurrentQuestion() {
@@ -754,7 +751,6 @@
 
       if (!normalized) return null;
 
-      // Exact number with optional scale word (e.g., "5000", "5 thousand", "2.5k")
       const scaledMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|thousand|tausand|savi|saavira|hajar|lakh|lac|lakhs|hundred)?\b/);
       if (scaledMatch) {
         const base = parseFloat(scaledMatch[1]);
@@ -833,29 +829,18 @@
       if (!isThumbHeld && state !== "IDLE") startThumbHold();
       const raw = val.trim();
       document.getElementById("heard-transcript").textContent = `Entered: "${raw}"`;
-      handleGeminiResult({
-        transcript: raw,
-        intent: isYes(raw) ? "YES" : (isNo(raw) ? "NO" : "UNKNOWN"),
-        name: raw,
-        amount: extractNumberFromSpeech(raw)
-      });
+      handleSpokenUtterance(raw);
     }
 
-    async function handleGeminiResult(payload) {
+    async function handleSpokenUtterance(rawText) {
       if (!isThumbHeld) return;
-      const transcript = (payload.transcript || "").trim();
-      const intent = (payload.intent || "UNKNOWN").toUpperCase();
-      const candidateName = (payload.name || transcript).trim();
-
-      if (transcript) {
-        document.getElementById("heard-transcript").textContent = `Gemini heard: "${transcript}"`;
-      }
+      const clean = rawText.trim();
 
       if (state === "ASK_NAME") {
-        let match = findBestAccountMatch(candidateName) || findBestAccountMatch(transcript);
-        if (!match && candidateName) {
+        let match = findBestAccountMatch(clean);
+        if (!match) {
           try {
-            const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(candidateName)}`);
+            const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(clean)}`);
             if (res.ok) {
               const apiAcc = await res.json();
               match = findBestAccountMatch(apiAcc.name) || apiAcc;
@@ -871,36 +856,34 @@
           setKioskState("VERIFY_NAME");
           speak(`Matched ${match.name}, account ending in ${last4.split("").join(" ")}. Say Yes or No.`, true);
         } else {
-          speak(`I heard ${transcript || "nothing"}. Please say your registered name again.`, true);
+          speak(`I heard ${clean}. Please say your registered name again.`, true);
         }
         return;
       }
 
       if (state === "VERIFY_NAME") {
-        if (intent === "YES" || isYes(transcript)) confirmMatchedName(true);
-        else if (intent === "NO" || isNo(transcript)) confirmMatchedName(false);
+        if (isYes(clean)) confirmMatchedName(true);
+        else if (isNo(clean)) confirmMatchedName(false);
         else speak(`Please say Yes to confirm ${txData.matchedUser.name}, or No to try again.`, true);
         return;
       }
 
       if (state === "ASK_TX") {
-        if (intent === "DEPOSIT" || /\bdeposit\b/i.test(transcript)) selectTransactionType("DEPOSIT");
-        else if (intent === "WITHDRAWAL" || /\bwithdraw/i.test(transcript)) selectTransactionType("WITHDRAWAL");
+        if (/\bdeposit\b/i.test(clean)) selectTransactionType("DEPOSIT");
+        else if (/\bwithdraw/i.test(clean)) selectTransactionType("WITHDRAWAL");
         else speak("Please say Deposit or Withdrawal.", true);
         return;
       }
 
       if (state === "VERIFY_TX") {
-        if (intent === "YES" || isYes(transcript)) confirmTransactionType(true);
-        else if (intent === "NO" || isNo(transcript)) confirmTransactionType(false);
+        if (isYes(clean)) confirmTransactionType(true);
+        else if (isNo(clean)) confirmTransactionType(false);
         else speak(`Please say Yes to confirm ${txData.txType}, or No to change.`, true);
         return;
       }
 
       if (state === "ASK_AMOUNT") {
-        const parsedAmount = (typeof payload.amount === "number" && !isNaN(payload.amount) && payload.amount > 0)
-          ? Math.round(payload.amount)
-          : extractNumberFromSpeech(transcript);
+        const parsedAmount = extractNumberFromSpeech(clean);
         if (parsedAmount && parsedAmount > 0) {
           selectAmount(parsedAmount);
         } else {
@@ -910,8 +893,8 @@
       }
 
       if (state === "VERIFY_AMOUNT") {
-        if (intent === "YES" || isYes(transcript)) runMidSessionBiometricScan();
-        else if (intent === "NO" || isNo(transcript)) retryAmount();
+        if (isYes(clean)) runMidSessionBiometricScan();
+        else if (isNo(clean)) retryAmount();
         else speak(`Say Yes to confirm ₹${txData.amount.toLocaleString("en-IN")} and print slip, or No to change amount.`, true);
       }
     }
@@ -974,11 +957,10 @@
     // ==========================================
     // ACTIVATION, BIOMETRICS & PRINTING
     // ==========================================
-    async function activateKiosk() {
+    function activateKiosk() {
       document.getElementById("activation-overlay").style.display = "none";
       renderAccountList();
       warmUpBackend();
-      await ensureMicStream();
       speak("Welcome to Voice-Assisted Biometric Banking Slip. Place and hold your thumb on the scanner to begin.", false);
     }
 
