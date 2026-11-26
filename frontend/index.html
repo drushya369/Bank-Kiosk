@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Voice-Assisted Biometric Banking Slip</title>
+  <title>VaaniBank — Voice-Assisted Biometric Banking Slip</title>
   <style>
     :root {
       --bg: #050811;
@@ -172,7 +172,7 @@
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
       <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Hands-free voice banking kiosk with phonetic account matching, spoken rupee recognition, continuous thumb lock, and printable SHA-256 slips.
+        Hands-free voice banking kiosk powered by Gemini audio parsing, continuous thumb lock, and printable SHA-256 slips.
       </p>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
@@ -209,7 +209,7 @@
   <!-- Main Columns -->
   <main class="grid-main">
 
-    <!-- Left: Biometrics & Automatic Mic Status -->
+    <!-- Left: Biometrics & Automatic Gemini Mic Status -->
     <section class="panel no-print" style="display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
@@ -217,7 +217,7 @@
           <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
         </div>
         <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
-          Hold your thumb until slip generation finishes. The mic turns ON automatically after each prompt and turns OFF while speaking.
+          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and records your reply for Gemini.
         </p>
 
         <div style="display:flex;justify-content:center;margin:14px 0;">
@@ -261,7 +261,7 @@
         <div class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span id="mic-dot" style="width:10px;height:10px;border-radius:9999px;background:#475569;display:inline-block;"></span>
-            <span id="mic-status-text" style="font-size:12px;font-weight:600;color:#94a3b8;">Auto-Mic Standby</span>
+            <span id="mic-status-text" style="font-size:12px;font-weight:600;color:#94a3b8;">Gemini Mic Standby</span>
           </div>
           <button type="button" onclick="retryListeningNow()" class="btn" style="padding:5px 10px;font-size:11px;">↻ Re-listen</button>
         </div>
@@ -285,7 +285,7 @@
         <div id="step-workspace" class="no-print">
           <div id="ui-step-1" class="subpanel" style="text-align:center;padding:28px;">
             <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Place and hold your thumb to start</div>
-            <div style="font-size:12px;color:#94a3b8;">Everything after thumb lock runs automatically by voice.</div>
+            <div style="font-size:12px;color:#94a3b8;">Everything after thumb lock runs automatically by voice through Gemini.</div>
           </div>
 
           <div id="ui-step-2" style="display:none;">
@@ -307,7 +307,7 @@
           </div>
 
           <div id="ui-step-3" style="display:none;">
-            <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">Listening for "Deposit" or "Withdrawal"</div>
+            <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">Say "Deposit" or "Withdrawal"</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
               <button type="button" onclick="selectTransactionType('DEPOSIT')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#10b981;color:#6ee7b7;">⬇️ DEPOSIT</button>
               <button type="button" onclick="selectTransactionType('WITHDRAWAL')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#f59e0b;color:#fcd34d;">⬆️ WITHDRAWAL</button>
@@ -421,21 +421,49 @@
     let currentPromptText = "";
 
     // ==========================================
-    // AUTOMATIC HANDS-FREE TURN-LOCKED ENGINE
+    // GEMINI AUDIO TURN ENGINE (HANDS-FREE)
     // ==========================================
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    let activeRec = null;
+    let audioStream = null;
+    let mediaRecorder = null;
+    let recordTimer = null;
     let speakWatchdog = null;
-    let restartTimer = null;
-    let speechEndTimer = null;
     let micOpenTimer = null;
     let isSpeaking = false;
-    let isListening = false;
+    let isRecording = false;
     let shouldListen = false;
     let turnId = 0;
 
     function warmUpBackend() {
       fetch(`${BACKEND_API_URL}/`, { cache: "no-store" }).catch(() => {});
+    }
+
+    async function ensureMicStream() {
+      if (audioStream && audioStream.active) return audioStream;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+        return audioStream;
+      } catch (e) {
+        updateMicUI("OFF");
+        showBanner("Microphone permission blocked. Allow Microphone in Chrome site settings.");
+        return null;
+      }
+    }
+
+    function pickSupportedMimeType() {
+      const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+      for (const t of types) {
+        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
+      }
+      return "";
+    }
+
+    function getListenWindowMs() {
+      if (state === "VERIFY_NAME" || state === "VERIFY_TX" || state === "VERIFY_AMOUNT") return 2600;
+      if (state === "ASK_TX") return 2800;
+      return 3600;
     }
 
     function updateMicUI(mode) {
@@ -451,146 +479,127 @@
         dot.style.background = "#f59e0b";
         txt.textContent = "Mic OFF (Kiosk speaking)";
         txt.style.color = "#fbbf24";
+      } else if (mode === "PROCESSING") {
+        dot.className = "";
+        dot.style.background = "#38bdf8";
+        txt.textContent = "Gemini analyzing voice...";
+        txt.style.color = "#38bdf8";
       } else {
         dot.className = "";
         dot.style.background = "#475569";
-        txt.textContent = "Auto-Mic Standby";
+        txt.textContent = "Gemini Mic Standby";
         txt.style.color = "#94a3b8";
       }
     }
 
     function stopListening() {
       shouldListen = false;
-      clearTimeout(restartTimer);
-      clearTimeout(speechEndTimer);
+      clearTimeout(recordTimer);
       clearTimeout(micOpenTimer);
-      if (activeRec) {
+      if (mediaRecorder) {
         try {
-          activeRec.onresult = null;
-          activeRec.onerror = null;
-          activeRec.onnomatch = null;
-          activeRec.onspeechend = null;
-          activeRec.onend = null;
-          activeRec.abort();
+          mediaRecorder.onstop = null;
+          if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
         } catch (e) {}
-        activeRec = null;
+        mediaRecorder = null;
       }
-      isListening = false;
+      isRecording = false;
       updateMicUI(isSpeaking ? "SPEAKING" : "OFF");
     }
 
-    function startListening() {
-      if (!SpeechRec) {
-        showBanner("This browser does not support SpeechRecognition. Please use Google Chrome.");
-        return;
-      }
-      if (isSpeaking || !shouldListen || !isThumbHeld) return;
+    async function startListening() {
+      if (isSpeaking || !shouldListen || !isThumbHeld || isRecording) return;
       if (state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") return;
-      if (isListening) return;
+
+      const stream = await ensureMicStream();
+      if (!stream || isSpeaking || !shouldListen || !isThumbHeld) return;
 
       const myTurn = turnId;
       try {
-        const rec = new SpeechRec();
-        rec.lang = "en-IN";
-        rec.continuous = false;
-        rec.interimResults = true;
-        rec.maxAlternatives = 5;
-        activeRec = rec;
-        isListening = true;
+        const mimeType = pickSupportedMimeType();
+        const chunks = [];
+        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (ev) => {
+          if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          clearTimeout(recordTimer);
+          isRecording = false;
+          const keepListening = shouldListen;
+          shouldListen = false;
+
+          const rawType = mediaRecorder?.mimeType || "audio/webm";
+          const cleanType = rawType.split(";")[0].trim() || "audio/webm";
+          const blob = new Blob(chunks, { type: cleanType });
+          mediaRecorder = null;
+
+          if (!isThumbHeld || myTurn !== turnId || state === "IDLE" || state === "DONE" || state === "BIO_SCANNING") {
+            updateMicUI("OFF");
+            return;
+          }
+
+          if (!keepListening || blob.size < 350) {
+            updateMicUI("OFF");
+            speak("I didn't hear anything. Please speak again clearly.", true);
+            return;
+          }
+
+          await sendClipToGemini(blob, cleanType, myTurn);
+        };
+
+        isRecording = true;
         updateMicUI("LISTENING");
+        document.getElementById("heard-transcript").textContent = "Listening...";
+        mediaRecorder.start();
 
-        let handledResult = false;
-        let turnTranscript = "";
-
-        const commitSpeech = (text) => {
-          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
-          const clean = (text || "").trim();
-          if (!clean) return;
-          handledResult = true;
-          stopListening();
-          document.getElementById("heard-transcript").textContent = `Heard: "${clean}"`;
-          handleSpokenUtterance(clean);
-        };
-
-        rec.onresult = (event) => {
-          if (myTurn !== turnId || !isThumbHeld || handledResult) return;
-          let interim = "";
-          let finalTranscript = "";
-
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const alt0 = (event.results[i][0]?.transcript || "").trim();
-            if (event.results[i].isFinal) {
-              finalTranscript += alt0 + " ";
-            } else {
-              interim = alt0;
-            }
+        recordTimer = setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === "recording") {
+            try { mediaRecorder.stop(); } catch (e) {}
           }
-
-          turnTranscript = (finalTranscript || interim).trim();
-          if (turnTranscript) {
-            document.getElementById("heard-transcript").textContent = `Listening: "${turnTranscript}"`;
-          }
-
-          if (finalTranscript.trim()) {
-            commitSpeech(finalTranscript.trim());
-          }
-        };
-
-        rec.onspeechend = () => {
-          clearTimeout(speechEndTimer);
-          speechEndTimer = setTimeout(() => {
-            if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
-              commitSpeech(turnTranscript);
-            }
-          }, 400);
-        };
-
-        rec.onnomatch = () => {
-          if (handledResult || myTurn !== turnId || !isThumbHeld) return;
-          handledResult = true;
-          stopListening();
-          document.getElementById("heard-transcript").textContent = "Didn't catch that — asking again...";
-          speak("I didn't catch that. Please say it again clearly.", true);
-        };
-
-        rec.onerror = (ev) => {
-          isListening = false;
-          activeRec = null;
-          if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-            shouldListen = false;
-            updateMicUI("OFF");
-            showBanner("Microphone permission blocked. Allow Microphone in Chrome site settings.");
-            return;
-          }
-          if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
-            document.getElementById("heard-transcript").textContent = "Mic didn't pick up speech — asking again...";
-            speak("I couldn't hear you clearly. Please speak again.", true);
-          }
-        };
-
-        rec.onend = () => {
-          isListening = false;
-          activeRec = null;
-          if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
-            clearTimeout(speechEndTimer);
-            commitSpeech(turnTranscript);
-            return;
-          }
-          if (!handledResult && shouldListen && isThumbHeld && !isSpeaking && myTurn === turnId) {
-            document.getElementById("heard-transcript").textContent = "Nothing heard — asking again...";
-            speak("I didn't hear anything. Please speak again.", true);
-          } else if (!isSpeaking) {
-            updateMicUI("OFF");
-          }
-        };
-
-        rec.start();
+        }, getListenWindowMs());
       } catch (e) {
-        isListening = false;
-        activeRec = null;
-        if (shouldListen && isThumbHeld && myTurn === turnId) {
-          restartTimer = setTimeout(() => startListening(), 500);
+        isRecording = false;
+        updateMicUI("OFF");
+      }
+    }
+
+    async function sendClipToGemini(audioBlob, mimeType, myTurn) {
+      updateMicUI("PROCESSING");
+      document.getElementById("heard-transcript").textContent = "Gemini analyzing your voice...";
+
+      const controller = new AbortController();
+      const netTimer = setTimeout(() => controller.abort(), 20000);
+
+      try {
+        const formData = new FormData();
+        const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+        formData.append("audio", audioBlob, `turn.${ext}`);
+        formData.append("step_state", state);
+        formData.append("context_info", JSON.stringify(txData));
+
+        const res = await fetch(`${BACKEND_API_URL}/api/turn`, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal
+        });
+        clearTimeout(netTimer);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        if (!isThumbHeld || myTurn !== turnId || state === "IDLE" || state === "DONE") {
+          updateMicUI("OFF");
+          return;
         }
+
+        updateMicUI("OFF");
+        await handleGeminiResult(data);
+      } catch (err) {
+        clearTimeout(netTimer);
+        updateMicUI("OFF");
+        document.getElementById("heard-transcript").textContent = "Gemini voice check delayed — asking again...";
+        speak("I couldn't process that clearly. Please speak again.", true);
       }
     }
 
@@ -629,11 +638,11 @@
               shouldListen = true;
               startListening();
             }
-          }, 400);
+          }, 650);
         }
       };
 
-      const maxWait = Math.max(1500, Math.min(5500, text.length * 58 + 700));
+      const maxWait = Math.max(1600, Math.min(6000, text.length * 60 + 800));
       speakWatchdog = setTimeout(onDone, maxWait);
 
       setTimeout(() => {
@@ -641,7 +650,7 @@
         try {
           const utter = new SpeechSynthesisUtterance(text);
           utter.lang = "en-IN";
-          utter.rate = 1.02;
+          utter.rate = 1.0;
           window._utter = utter;
           utter.onend = onDone;
           utter.onerror = (ev) => {
@@ -652,7 +661,7 @@
         } catch (e) {
           onDone();
         }
-      }, 80);
+      }, 100);
     }
 
     function repeatCurrentQuestion() {
@@ -662,7 +671,7 @@
     }
 
     // ==========================================
-    // SUITABLE NAME, AMOUNT & INTENT PARSING
+    // NAME, EXACT AMOUNT & INTENT HANDLING
     // ==========================================
     function phoneticNormalize(str) {
       return (str || "")
@@ -738,17 +747,18 @@
       const normalized = text
         .toLowerCase()
         .replace(/₹|rs\.?|rupees?|inr/gi, " ")
-        .replace(/,/g, " ")
+        .replace(/,/g, "")
         .replace(/\band\b/g, " ")
         .replace(/\s+/g, " ")
         .trim();
 
       if (!normalized) return null;
 
-      const digitScaleMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|thousand|tausand|savi|saavira|hajar|lakh|lac|lakhs|hundred)?\b/);
-      if (digitScaleMatch) {
-        const base = parseFloat(digitScaleMatch[1]);
-        const unit = digitScaleMatch[2] || "";
+      // Exact number with optional scale word (e.g., "5000", "5 thousand", "2.5k")
+      const scaledMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|thousand|tausand|savi|saavira|hajar|lakh|lac|lakhs|hundred)?\b/);
+      if (scaledMatch) {
+        const base = parseFloat(scaledMatch[1]);
+        const unit = scaledMatch[2] || "";
         if (["k", "thousand", "tausand", "savi", "saavira", "hajar"].includes(unit)) return Math.round(base * 1000);
         if (["lakh", "lac", "lakhs"].includes(unit)) return Math.round(base * 100000);
         if (unit === "hundred") return Math.round(base * 100);
@@ -756,10 +766,10 @@
       }
 
       const ones = {
-        zero: 0, one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4,
-        five: 5, faiv: 5, six: 6, seven: 7, eight: 8, ate: 8, nine: 9,
-        ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
-        fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19
+        zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
+        six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+        eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
+        sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19
       };
       const tens = {
         twenty: 20, thirty: 30, forty: 40, fifty: 50,
@@ -771,70 +781,81 @@
 
       if (!hasScale && tokens.length >= 2 && tokens.every((t) => /^\d$/.test(t) || (t in ones && ones[t] <= 9))) {
         const joined = tokens.map((t) => (/^\d$/.test(t) ? t : String(ones[t]))).join("");
-        const parsedDigits = parseInt(joined, 10);
-        if (!isNaN(parsedDigits) && parsedDigits > 0) return parsedDigits;
+        const parsed = parseInt(joined, 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
       }
 
       let total = 0;
       let current = 0;
-      let sawNumberWord = false;
+      let found = false;
 
       for (const tok of tokens) {
         if (/^\d+$/.test(tok)) {
           current += parseInt(tok, 10);
-          sawNumberWord = true;
+          found = true;
         } else if (tok in ones) {
           current += ones[tok];
-          sawNumberWord = true;
+          found = true;
         } else if (tok in tens) {
           current += tens[tok];
-          sawNumberWord = true;
+          found = true;
         } else if (tok === "hundred") {
           current = (current || 1) * 100;
-          sawNumberWord = true;
+          found = true;
         } else if (["thousand", "tausand", "savi", "saavira", "hajar", "k"].includes(tok)) {
           total += (current || 1) * 1000;
           current = 0;
-          sawNumberWord = true;
+          found = true;
         } else if (["lakh", "lac", "lakhs"].includes(tok)) {
           total += (current || 1) * 100000;
           current = 0;
-          sawNumberWord = true;
+          found = true;
         }
       }
 
-      const finalVal = total + current;
-      return sawNumberWord && finalVal > 0 ? finalVal : null;
+      const result = total + current;
+      return found && result > 0 ? result : null;
     }
 
     function isYes(t) {
       const cleaned = (t || "").toLowerCase().replace(/[^a-z\s]/g, " ").trim();
-      return /\b(yes|yeah|yep|yup|confirm|correct|right|okay|sure|proceed|haan|ji)\b/.test(cleaned) ||
-        /^(ok|es|is|us)$/.test(cleaned);
+      return /\b(yes|yeah|yep|yup|confirm|correct|right|okay|sure|proceed|haan|ji)\b/.test(cleaned) || cleaned === "ok";
     }
+
     function isNo(t) {
       const cleaned = (t || "").toLowerCase().replace(/[^a-z\s]/g, " ").trim();
-      return /\b(no|nope|nah|wrong|retry|change|cancel|back|incorrect|nahi)\b/.test(cleaned) ||
-        /^(know|now)$/.test(cleaned);
+      return /\b(no|nope|nah|wrong|retry|change|cancel|back|incorrect|nahi)\b/.test(cleaned);
     }
 
     function handleManualInput(val) {
       if (!val || !val.trim()) return;
       stopListening();
       if (!isThumbHeld && state !== "IDLE") startThumbHold();
-      document.getElementById("heard-transcript").textContent = `Entered: "${val.trim()}"`;
-      handleSpokenUtterance(val.trim());
+      const raw = val.trim();
+      document.getElementById("heard-transcript").textContent = `Entered: "${raw}"`;
+      handleGeminiResult({
+        transcript: raw,
+        intent: isYes(raw) ? "YES" : (isNo(raw) ? "NO" : "UNKNOWN"),
+        name: raw,
+        amount: extractNumberFromSpeech(raw)
+      });
     }
 
-    async function handleSpokenUtterance(rawText) {
+    async function handleGeminiResult(payload) {
       if (!isThumbHeld) return;
-      const clean = rawText.trim();
+      const transcript = (payload.transcript || "").trim();
+      const intent = (payload.intent || "UNKNOWN").toUpperCase();
+      const candidateName = (payload.name || transcript).trim();
+
+      if (transcript) {
+        document.getElementById("heard-transcript").textContent = `Gemini heard: "${transcript}"`;
+      }
 
       if (state === "ASK_NAME") {
-        let match = findBestAccountMatch(clean);
-        if (!match) {
+        let match = findBestAccountMatch(candidateName) || findBestAccountMatch(transcript);
+        if (!match && candidateName) {
           try {
-            const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(clean)}`);
+            const res = await fetch(`${BACKEND_API_URL}/api/lookup?name=${encodeURIComponent(candidateName)}`);
             if (res.ok) {
               const apiAcc = await res.json();
               match = findBestAccountMatch(apiAcc.name) || apiAcc;
@@ -848,48 +869,50 @@
           document.getElementById("matched-account-display").textContent = `${match.name} — Acct ending ${last4}`;
           document.getElementById("confirm-name-box").style.display = "block";
           setKioskState("VERIFY_NAME");
-          speak(`Matched account ${match.name}, ending in ${last4.split("").join(" ")}. Say Yes or No.`, true);
+          speak(`Matched ${match.name}, account ending in ${last4.split("").join(" ")}. Say Yes or No.`, true);
         } else {
-          speak(`I heard ${clean}. Please say a registered customer name again.`, true);
+          speak(`I heard ${transcript || "nothing"}. Please say your registered name again.`, true);
         }
         return;
       }
 
       if (state === "VERIFY_NAME") {
-        if (isYes(clean)) confirmMatchedName(true);
-        else if (isNo(clean)) confirmMatchedName(false);
+        if (intent === "YES" || isYes(transcript)) confirmMatchedName(true);
+        else if (intent === "NO" || isNo(transcript)) confirmMatchedName(false);
         else speak(`Please say Yes to confirm ${txData.matchedUser.name}, or No to try again.`, true);
         return;
       }
 
       if (state === "ASK_TX") {
-        if (/\bdeposit\b/i.test(clean)) selectTransactionType("DEPOSIT");
-        else if (/\bwithdraw/i.test(clean)) selectTransactionType("WITHDRAWAL");
+        if (intent === "DEPOSIT" || /\bdeposit\b/i.test(transcript)) selectTransactionType("DEPOSIT");
+        else if (intent === "WITHDRAWAL" || /\bwithdraw/i.test(transcript)) selectTransactionType("WITHDRAWAL");
         else speak("Please say Deposit or Withdrawal.", true);
         return;
       }
 
       if (state === "VERIFY_TX") {
-        if (isYes(clean)) confirmTransactionType(true);
-        else if (isNo(clean)) confirmTransactionType(false);
+        if (intent === "YES" || isYes(transcript)) confirmTransactionType(true);
+        else if (intent === "NO" || isNo(transcript)) confirmTransactionType(false);
         else speak(`Please say Yes to confirm ${txData.txType}, or No to change.`, true);
         return;
       }
 
       if (state === "ASK_AMOUNT") {
-        const num = extractNumberFromSpeech(clean.toLowerCase());
-        if (num && num > 0) {
-          selectAmount(num);
+        const parsedAmount = (typeof payload.amount === "number" && !isNaN(payload.amount) && payload.amount > 0)
+          ? Math.round(payload.amount)
+          : extractNumberFromSpeech(transcript);
+        if (parsedAmount && parsedAmount > 0) {
+          selectAmount(parsedAmount);
         } else {
-          speak(`I heard ${clean}, but didn't catch a valid rupee amount. Please say the amount in rupees again.`, true);
+          speak("Please say the exact amount in rupees again.", true);
         }
         return;
       }
 
       if (state === "VERIFY_AMOUNT") {
-        if (isYes(clean)) runMidSessionBiometricScan();
-        else if (isNo(clean)) retryAmount();
-        else speak(`Say Yes to authenticate ₹${txData.amount.toLocaleString("en-IN")} and print slip, or No to change amount.`, true);
+        if (intent === "YES" || isYes(transcript)) runMidSessionBiometricScan();
+        else if (intent === "NO" || isNo(transcript)) retryAmount();
+        else speak(`Say Yes to confirm ₹${txData.amount.toLocaleString("en-IN")} and print slip, or No to change amount.`, true);
       }
     }
 
@@ -927,7 +950,7 @@
     }
 
     function selectAmount(val) {
-      const amt = parseFloat(val);
+      const amt = Math.round(parseFloat(val));
       if (isNaN(amt) || amt <= 0) return;
       stopListening();
       txData.amount = amt;
@@ -945,16 +968,17 @@
       document.getElementById("amount-preview-box").style.display = "none";
       txData.amount = null;
       setKioskState("ASK_AMOUNT");
-      speak("Say the amount in rupees again.", true);
+      speak("Say the exact amount in rupees again.", true);
     }
 
     // ==========================================
     // ACTIVATION, BIOMETRICS & PRINTING
     // ==========================================
-    function activateKiosk() {
+    async function activateKiosk() {
       document.getElementById("activation-overlay").style.display = "none";
       renderAccountList();
       warmUpBackend();
+      await ensureMicStream();
       speak("Welcome to Voice-Assisted Biometric Banking Slip. Place and hold your thumb on the scanner to begin.", false);
     }
 
