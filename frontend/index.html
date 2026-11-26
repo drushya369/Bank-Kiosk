@@ -172,7 +172,7 @@
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
       <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Hands-free voice banking kiosk with phonetic name matching, accurate rupee recognition, continuous thumb lock, and SHA-256 verification.
+        Hands-free voice banking kiosk with phonetic name matching, spoken rupee recognition, continuous thumb lock, and SHA-256 verification.
       </p>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
@@ -423,6 +423,7 @@
     let activeRec = null;
     let speakWatchdog = null;
     let restartTimer = null;
+    let speechEndTimer = null;
     let isSpeaking = false;
     let isListening = false;
     let shouldListen = false;
@@ -456,6 +457,7 @@
     function stopListening() {
       shouldListen = false;
       clearTimeout(restartTimer);
+      clearTimeout(speechEndTimer);
       if (activeRec) {
         try {
           activeRec.onresult = null;
@@ -529,11 +531,12 @@
         };
 
         rec.onspeechend = () => {
-          setTimeout(() => {
+          clearTimeout(speechEndTimer);
+          speechEndTimer = setTimeout(() => {
             if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
               commitSpeech(turnTranscript);
             }
-          }, 220);
+          }, 450);
         };
 
         rec.onnomatch = () => {
@@ -563,6 +566,7 @@
           isListening = false;
           activeRec = null;
           if (!handledResult && turnTranscript && myTurn === turnId && isThumbHeld) {
+            clearTimeout(speechEndTimer);
             commitSpeech(turnTranscript);
             return;
           }
@@ -735,20 +739,19 @@
 
       if (!normalized) return null;
 
-      // Direct numeric digits (with optional thousand / lakh / k suffix)
-      const digitScaleMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|thousand|lakh|lac|lakhs|hundred)?\b/);
+      const digitScaleMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|thousand|tausand|savi|saavira|hajar|lakh|lac|lakhs|hundred)?\b/);
       if (digitScaleMatch) {
         const base = parseFloat(digitScaleMatch[1]);
         const unit = digitScaleMatch[2] || "";
-        if (unit === "k" || unit === "thousand") return Math.round(base * 1000);
-        if (unit === "lakh" || unit === "lac" || unit === "lakhs") return Math.round(base * 100000);
+        if (["k", "thousand", "tausand", "savi", "saavira", "hajar"].includes(unit)) return Math.round(base * 1000);
+        if (["lakh", "lac", "lakhs"].includes(unit)) return Math.round(base * 100000);
         if (unit === "hundred") return Math.round(base * 100);
         if (!isNaN(base) && base > 0) return base;
       }
 
       const ones = {
-        zero: 0, one: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4,
-        five: 5, six: 6, seven: 7, eight: 8, ate: 8, nine: 9,
+        zero: 0, one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4,
+        five: 5, faiv: 5, six: 6, seven: 7, eight: 8, ate: 8, nine: 9,
         ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
         fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19
       };
@@ -758,6 +761,15 @@
       };
 
       const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+      const hasScale = tokens.some((t) => ["hundred", "thousand", "tausand", "savi", "saavira", "hajar", "lakh", "lac", "lakhs", "k"].includes(t));
+
+      // If user spoke individual digits like "five zero zero zero" without scale words
+      if (!hasScale && tokens.length >= 2 && tokens.every((t) => /^\d$/.test(t) || (t in ones && ones[t] <= 9))) {
+        const joined = tokens.map((t) => (/^\d$/.test(t) ? t : String(ones[t]))).join("");
+        const parsedDigits = parseInt(joined, 10);
+        if (!isNaN(parsedDigits) && parsedDigits > 0) return parsedDigits;
+      }
+
       let total = 0;
       let current = 0;
       let sawNumberWord = false;
@@ -775,11 +787,11 @@
         } else if (tok === "hundred") {
           current = (current || 1) * 100;
           sawNumberWord = true;
-        } else if (tok === "thousand" || tok === "tausand" || tok === "k") {
+        } else if (["thousand", "tausand", "savi", "saavira", "hajar", "k"].includes(tok)) {
           total += (current || 1) * 1000;
           current = 0;
           sawNumberWord = true;
-        } else if (tok === "lakh" || tok === "lac" || tok === "lakhs") {
+        } else if (["lakh", "lac", "lakhs"].includes(tok)) {
           total += (current || 1) * 100000;
           current = 0;
           sawNumberWord = true;
@@ -791,10 +803,14 @@
     }
 
     function isYes(t) {
-      return /\b(yes|yeah|yep|yup|confirm|correct|right|okay|sure|proceed|haan|ji)\b/i.test(t || "");
+      const cleaned = (t || "").toLowerCase().replace(/[^a-z\s]/g, " ").trim();
+      return /\b(yes|yeah|yep|yup|confirm|correct|right|okay|sure|proceed|haan|ji)\b/.test(cleaned) ||
+        /^(ok|es|is|us)$/.test(cleaned);
     }
     function isNo(t) {
-      return /\b(no|nope|nah|wrong|retry|change|cancel|back|incorrect|nahi)\b/i.test(t || "");
+      const cleaned = (t || "").toLowerCase().replace(/[^a-z\s]/g, " ").trim();
+      return /\b(no|nope|nah|wrong|retry|change|cancel|back|incorrect|nahi)\b/.test(cleaned) ||
+        /^(know|now)$/.test(cleaned);
     }
 
     function handleManualInput(val) {
