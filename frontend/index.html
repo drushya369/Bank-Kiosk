@@ -29,6 +29,7 @@
       border: 1px solid var(--border);
       border-radius: 20px;
       padding: 20px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
     }
     .subpanel {
       background: var(--panel-2);
@@ -45,8 +46,10 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
     }
     .btn:hover { background: #334155; }
+    .btn:active { transform: scale(0.98); }
     .btn-accent {
       border: none;
       background: var(--accent);
@@ -69,17 +72,18 @@
       100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
     @keyframes signalGlowGreen {
-      0%, 100% { box-shadow: 0 0 18px rgba(16, 185, 129, 0.85), 0 0 36px rgba(16, 185, 129, 0.45); }
-      50% { box-shadow: 0 0 28px rgba(52, 211, 153, 1), 0 0 52px rgba(16, 185, 129, 0.7); }
+      0%, 100% { box-shadow: 0 0 18px rgba(16, 185, 129, 0.75), 0 0 34px rgba(16, 185, 129, 0.35); }
+      50% { box-shadow: 0 0 26px rgba(52, 211, 153, 0.95), 0 0 46px rgba(16, 185, 129, 0.55); }
     }
     @keyframes signalGlowRed {
-      0%, 100% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.85), 0 0 36px rgba(239, 68, 68, 0.45); }
-      50% { box-shadow: 0 0 28px rgba(248, 113, 113, 1), 0 0 52px rgba(239, 68, 68, 0.7); }
+      0%, 100% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.75), 0 0 34px rgba(239, 68, 68, 0.35); }
+      50% { box-shadow: 0 0 26px rgba(248, 113, 113, 0.95), 0 0 46px rgba(239, 68, 68, 0.55); }
     }
 
-    /* Top High-Visibility Green & Red Turn Signal Bar */
+    /* Top High-Visibility Red (Kiosk / Speaker) & Green (User / Mic) Signal Bar */
     .signal-bar-wrap {
-      background: #070b16;
+      background: rgba(7, 11, 22, 0.96);
+      backdrop-filter: blur(10px);
       border-bottom: 1px solid #1e293b;
       padding: 12px 16px;
       position: sticky;
@@ -91,48 +95,78 @@
       margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 14px;
     }
     .signal-card {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 12px;
-      padding: 12px 14px;
+      text-align: center;
+      gap: 6px;
+      padding: 12px 16px;
       border-radius: 16px;
       background: #0d1426;
       border: 2px solid #1e293b;
-      opacity: 0.35;
+      opacity: 0.42;
       transition: all 0.2s ease;
     }
+    .signal-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
     .signal-bulb {
-      width: 28px;
-      height: 28px;
+      width: 22px;
+      height: 22px;
       border-radius: 9999px;
       flex-shrink: 0;
-      border: 2px solid rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.22);
     }
     .signal-bulb.red { background: #7f1d1d; }
     .signal-bulb.green { background: #064e3b; }
 
+    .signal-symbol-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 11px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: #e2e8f0;
+    }
+
     .signal-card.active-red {
       opacity: 1;
-      background: rgba(127, 29, 29, 0.35);
+      background: rgba(127, 29, 29, 0.34);
       border-color: #ef4444;
     }
     .signal-card.active-red .signal-bulb.red {
       background: #ef4444;
-      animation: signalGlowRed 1.2s infinite;
+      animation: signalGlowRed 1.25s infinite;
+    }
+    .signal-card.active-red .signal-symbol-badge {
+      border-color: rgba(248, 113, 113, 0.65);
+      color: #fecaca;
     }
 
     .signal-card.active-green {
       opacity: 1;
-      background: rgba(6, 78, 59, 0.35);
+      background: rgba(6, 78, 59, 0.34);
       border-color: #10b981;
     }
     .signal-card.active-green .signal-bulb.green {
       background: #10b981;
-      animation: signalGlowGreen 1.2s infinite;
+      animation: signalGlowGreen 1.25s infinite;
+    }
+    .signal-card.active-green .signal-symbol-badge {
+      border-color: rgba(52, 211, 153, 0.65);
+      color: #a7f3d0;
     }
 
     .signal-title {
@@ -145,14 +179,15 @@
     .signal-sub {
       font-size: 11px;
       color: #cbd5e1;
-      margin-top: 2px;
     }
     @media (max-width: 600px) {
       .signal-bar-wrap { padding: 10px 12px; }
       .signal-bar-inner { gap: 8px; }
-      .signal-card { padding: 10px; gap: 8px; border-radius: 12px; }
-      .signal-bulb { width: 22px; height: 22px; }
+      .signal-card { padding: 10px 8px; gap: 5px; border-radius: 14px; }
+      .signal-top-row { gap: 6px; }
+      .signal-bulb { width: 18px; height: 18px; }
       .signal-title { font-size: 12px; }
+      .signal-symbol-badge { font-size: 10px; padding: 3px 8px; }
       .signal-sub { font-size: 10px; }
     }
 
@@ -307,22 +342,24 @@
     </div>
   </div>
 
-  <!-- High-Visibility Red (Listen) & Green (Speak) Turn Lights -->
+  <!-- High-Visibility Red (Kiosk Speaker) & Green (User Mic) Turn Lights -->
   <div class="signal-bar-wrap no-print" role="status" aria-live="polite">
     <div class="signal-bar-inner">
       <div id="signal-red-card" class="signal-card">
-        <span class="signal-bulb red"></span>
-        <div>
-          <div class="signal-title" style="color:#fca5a5;">Red Light — Listen</div>
-          <div class="signal-sub">Kiosk is speaking (Wait)</div>
+        <div class="signal-top-row">
+          <span class="signal-bulb red"></span>
+          <span class="signal-title" style="color:#fca5a5;">Red Light — Listen</span>
         </div>
+        <span class="signal-symbol-badge">🔊 Kiosk Speaking</span>
+        <div class="signal-sub">Wait while kiosk talks</div>
       </div>
       <div id="signal-green-card" class="signal-card">
-        <span class="signal-bulb green"></span>
-        <div>
-          <div class="signal-title" style="color:#6ee7b7;">Green Light — Speak</div>
-          <div class="signal-sub">Mic is ON (Your turn)</div>
+        <div class="signal-top-row">
+          <span class="signal-bulb green"></span>
+          <span class="signal-title" style="color:#6ee7b7;">Green Light — Speak</span>
         </div>
+        <span class="signal-symbol-badge">🎤 User Mic ON</span>
+        <div class="signal-sub">Speak clearly now</div>
       </div>
     </div>
   </div>
@@ -437,7 +474,7 @@
         <div id="step-workspace" class="no-print">
           <div id="ui-step-1" class="subpanel" style="text-align:center;padding:24px;">
             <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Hold the screen-unlock fingerprint sensor to start</div>
-            <div style="font-size:12px;color:#94a3b8;">Watch the top lights: Red = Listen, Green = Speak.</div>
+            <div style="font-size:12px;color:#94a3b8;">Watch the top lights: Red (🔊 Kiosk) = Listen, Green (🎤 User) = Speak.</div>
           </div>
 
           <div id="ui-step-2" style="display:none;">
@@ -700,7 +737,7 @@
     }
 
     function isEchoFromCurrentPrompt(text) {
-      if (Date.now() - lastSpokeAt > 750) return false;
+      if (Date.now() - lastSpokenAt > 750) return false;
       const cand = (text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
       const prompt = (currentPromptText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
       if (!cand || !prompt) return false;
