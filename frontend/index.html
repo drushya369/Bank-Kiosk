@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>VaaniBank — Voice-Assisted Biometric Banking Slip</title>
   <style>
     :root {
@@ -21,13 +21,14 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
     }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
     .panel {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 20px;
-      padding: 22px;
+      padding: 20px;
     }
     .subpanel {
       background: var(--panel-2);
@@ -40,7 +41,7 @@
       background: #1e293b;
       color: #f8fafc;
       border-radius: 10px;
-      padding: 8px 14px;
+      padding: 9px 14px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -53,6 +54,15 @@
       font-weight: 700;
     }
     .btn-accent:hover { background: #34d399; }
+    .pill-tag {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: #132038;
+      border: 1px solid #243b63;
+      color: #93c5fd;
+      font-weight: 600;
+    }
     @keyframes pulseRing {
       0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
       70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
@@ -63,8 +73,8 @@
       animation: pulseRing 1.4s infinite;
     }
     .thumb-circle {
-      width: 164px;
-      height: 164px;
+      width: 168px;
+      height: 168px;
       border-radius: 9999px;
       border: 3px solid #334155;
       background: #070c18;
@@ -76,39 +86,65 @@
       gap: 8px;
       cursor: pointer;
       user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
       transition: all 0.2s;
     }
     .thumb-circle.locked {
       border-color: #10b981;
       background: rgba(16, 185, 129, 0.14);
       color: #6ee7b7;
-      box-shadow: 0 0 24px rgba(16, 185, 129, 0.18);
+      box-shadow: 0 0 26px rgba(16, 185, 129, 0.2);
     }
     .thumb-icon {
-      width: 50px;
-      height: 50px;
-      max-width: 50px;
-      max-height: 50px;
+      width: 52px;
+      height: 52px;
+      max-width: 52px;
+      max-height: 52px;
       flex-shrink: 0;
     }
     .grid-main {
-      max-width: 1120px;
+      max-width: 1160px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 16px 20px 28px;
       display: grid;
       grid-template-columns: 1fr;
-      gap: 20px;
+      gap: 18px;
     }
     @media (min-width: 900px) {
       .grid-main { grid-template-columns: 5fr 7fr; }
     }
+    body.device-laptop .grid-main {
+      max-width: 1080px;
+      padding: 14px 18px 24px;
+      gap: 16px;
+    }
+    body.device-desktop .grid-main {
+      max-width: 1240px;
+      padding: 20px 24px 32px;
+      gap: 22px;
+    }
+    body.device-mobile .panel {
+      padding: 16px;
+      border-radius: 16px;
+    }
+    body.device-mobile .thumb-circle {
+      width: 148px;
+      height: 148px;
+    }
     .steps-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      max-width: 1120px;
-      margin: 18px auto 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      max-width: 1160px;
+      margin: 14px auto 0;
       padding: 0 20px;
+    }
+    @media (min-width: 640px) {
+      .steps-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
     }
     .step-pill {
       background: var(--panel);
@@ -168,12 +204,15 @@
 
   <!-- Start Overlay -->
   <div id="activation-overlay" class="no-print" style="position:fixed;inset:0;background:rgba(5,8,17,0.96);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;">
-    <div class="panel" style="max-width:430px;width:100%;text-align:center;">
+    <div class="panel" style="max-width:440px;width:100%;text-align:center;">
       <div style="font-size:38px;margin-bottom:10px;">🏦</div>
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;">Voice-Assisted Biometric Banking Slip</h1>
-      <p style="margin:0 0 22px;font-size:13px;color:#94a3b8;line-height:1.5;">
-        Hands-free voice banking kiosk with phonetic name matching, accurate rupee recognition, continuous thumb lock, and printable SHA-256 slips.
+      <p style="margin:0 0 12px;font-size:13px;color:#94a3b8;line-height:1.5;">
+        Adaptive voice banking kiosk for Mobile, Laptop, and PC with screen-unlock fingerprint simulation, connected scanner verification, and printable SHA-256 slips.
       </p>
+      <div style="margin-bottom:18px;">
+        <span id="overlay-device-badge" class="pill-tag mono">Detecting Device...</span>
+      </div>
       <button onclick="activateKiosk()" class="btn btn-accent" style="width:100%;padding:13px 16px;font-size:15px;">
         Start Kiosk Session
       </button>
@@ -181,16 +220,19 @@
   </div>
 
   <!-- Header -->
-  <header class="no-print" style="background:#0b1120;border-bottom:1px solid #1e293b;padding:14px 20px;">
-    <div style="max-width:1120px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
-      <div>
-        <div style="font-weight:800;font-size:17px;">Voice-Assisted Biometric Banking Slip</div>
-        <div style="font-size:12px;color:#94a3b8;">VaaniBank Hands-Free Accessible Terminal</div>
+  <header class="no-print" style="background:#0b1120;border-bottom:1px solid #1e293b;padding:12px 20px;">
+    <div style="max-width:1160px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+        <div>
+          <div style="font-weight:800;font-size:17px;">Voice-Assisted Biometric Banking Slip</div>
+          <div style="font-size:12px;color:#94a3b8;">VaaniBank Adaptive Accessible Terminal</div>
+        </div>
+        <span id="device-profile-badge" class="pill-tag mono">PC / Auto</span>
       </div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
         <button onclick="toggleAccountModal(true)" class="btn">+ Accounts (<span id="account-count">3</span>)</button>
-        <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="btn btn-accent">Prototype Mode</button>
-        <button id="btn-user-mode" onclick="setKioskMode('user')" class="btn">User Mode (L1)</button>
+        <button id="btn-prototype-mode" onclick="setKioskMode('prototype')" class="btn btn-accent">Prototype (Screen FP)</button>
+        <button id="btn-user-mode" onclick="setKioskMode('user')" class="btn">Connected Scanner</button>
       </div>
     </div>
   </header>
@@ -210,35 +252,37 @@
   <main class="grid-main">
 
     <!-- Left: Biometrics & Automatic Mic Status -->
-    <section class="panel no-print" style="display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
+    <section class="panel no-print" style="display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-          <h2 style="margin:0;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#cbd5e1;">Biometric Thumb Lock</h2>
+          <h2 id="sensor-heading" style="margin:0;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#cbd5e1;">Screen-Unlock Fingerprint Lock</h2>
           <span id="biometric-badge" class="mono" style="font-size:11px;padding:4px 10px;border-radius:9999px;background:#1e293b;color:#94a3b8;">WAITING</span>
         </div>
-        <p style="margin:0 0 16px;font-size:12px;color:#94a3b8;line-height:1.5;">
-          Hold your thumb until slip generation finishes. The mic stays OFF while the kiosk speaks and turns ON automatically after each prompt.
+        <p id="sensor-description" style="margin:0 0 14px;font-size:12px;color:#94a3b8;line-height:1.5;">
+          Press and hold the screen-unlock fingerprint sensor until your slip is generated. Releasing early aborts the session for security.
         </p>
 
-        <div style="display:flex;justify-content:center;margin:14px 0;">
+        <div style="display:flex;justify-content:center;margin:12px 0;">
           <button
             id="thumb-pad"
             type="button"
-            onmousedown="startThumbHold()"
-            ontouchstart="startThumbHold(event)"
-            onmouseup="releaseThumbHold()"
-            onmouseleave="releaseThumbHold()"
-            ontouchend="releaseThumbHold()"
+            onpointerdown="handleThumbPointerDown(event)"
+            onpointerup="handleThumbPointerUp(event)"
+            onpointercancel="handleThumbPointerUp(event)"
             class="thumb-circle">
             <svg class="thumb-icon" id="thumb-svg" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
             </svg>
-            <span id="thumb-label" style="font-size:11px;font-weight:700;text-align:center;padding:0 10px;">Press &amp; Hold Thumb</span>
+            <span id="thumb-label" style="font-size:11px;font-weight:700;text-align:center;padding:0 10px;">Hold Screen Fingerprint</span>
           </button>
         </div>
 
         <div class="subpanel" style="font-size:12px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span style="color:#94a3b8;">Sensor Source</span>
+            <span id="bio-source-status" class="mono" style="color:#93c5fd;">Screen-Unlock FP</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;border-top:1px solid #1e293b;padding-top:8px;">
             <span style="color:#94a3b8;">Continuous Heartbeat</span>
             <span id="bio-heartbeat-status" class="mono" style="color:#64748b;">Idle</span>
           </div>
@@ -252,8 +296,8 @@
       <div style="border-top:1px solid #1e293b;padding-top:14px;display:flex;flex-direction:column;gap:10px;">
         <label class="subpanel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;">
           <div>
-            <div style="font-size:12px;font-weight:700;">Lock Thumb Contact (Demo Hold)</div>
-            <div style="font-size:11px;color:#94a3b8;">Hands-free testing without holding mouse button</div>
+            <div style="font-size:12px;font-weight:700;">Lock Screen Fingerprint (Demo Hold)</div>
+            <div style="font-size:11px;color:#94a3b8;">Keeps screen fingerprint verified during hands-free voice testing</div>
           </div>
           <input id="sim-hold-toggle" type="checkbox" onchange="toggleSimulatedHold(this.checked)" style="width:18px;height:18px;cursor:pointer;" />
         </label>
@@ -283,9 +327,9 @@
         </div>
 
         <div id="step-workspace" class="no-print">
-          <div id="ui-step-1" class="subpanel" style="text-align:center;padding:28px;">
-            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Place and hold your thumb to start</div>
-            <div style="font-size:12px;color:#94a3b8;">Everything after thumb lock runs automatically by voice.</div>
+          <div id="ui-step-1" class="subpanel" style="text-align:center;padding:24px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Hold the screen-unlock fingerprint sensor to start</div>
+            <div style="font-size:12px;color:#94a3b8;">Works on Mobile, Laptop, and PC with automatic voice guidance.</div>
           </div>
 
           <div id="ui-step-2" style="display:none;">
@@ -309,8 +353,8 @@
           <div id="ui-step-3" style="display:none;">
             <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px;">Say "Deposit" or "Withdrawal"</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <button type="button" onclick="selectTransactionType('DEPOSIT')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#10b981;color:#6ee7b7;">⬇️ DEPOSIT</button>
-              <button type="button" onclick="selectTransactionType('WITHDRAWAL')" class="btn" style="padding:18px;font-size:15px;font-weight:800;border-color:#f59e0b;color:#fcd34d;">⬆️ WITHDRAWAL</button>
+              <button type="button" onclick="selectTransactionType('DEPOSIT')" class="btn" style="padding:16px;font-size:15px;font-weight:800;border-color:#10b981;color:#6ee7b7;">⬇️ DEPOSIT</button>
+              <button type="button" onclick="selectTransactionType('WITHDRAWAL')" class="btn" style="padding:16px;font-size:15px;font-weight:800;border-color:#f59e0b;color:#fcd34d;">⬆️ WITHDRAWAL</button>
             </div>
             <div id="confirm-tx-box" class="subpanel" style="display:none;margin-top:12px;border-color:#10b981;">
               <div id="tx-verify-display" style="font-weight:700;margin-bottom:10px;"></div>
@@ -420,9 +464,71 @@
     let txData = { matchedUser: null, txType: null, amount: null };
     let currentPromptText = "";
     let lastSpokeAt = 0;
+    let detectedDeviceType = "desktop";
 
     // ==========================================
-    // BUG-FIXED HANDS-FREE SPEECH ENGINE
+    // DEVICE DETECTION & ADAPTIVE ADJUSTMENT
+    // ==========================================
+    function detectAndApplyDeviceProfile() {
+      const ua = navigator.userAgent || "";
+      const width = window.innerWidth || 1200;
+      const hasTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+      const isMobileUA = /Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const isLaptopUA = !isMobileUA && (width <= 1440 || /Macintosh|MacBook|CrOS|Laptop/i.test(ua) || (hasTouch && width >= 768));
+
+      if (isMobileUA || width < 680) {
+        detectedDeviceType = "mobile";
+      } else if (isLaptopUA) {
+        detectedDeviceType = "laptop";
+      } else {
+        detectedDeviceType = "desktop";
+      }
+
+      document.body.classList.remove("device-mobile", "device-laptop", "device-desktop");
+      document.body.classList.add(`device-${detectedDeviceType}`);
+
+      const labelMap = {
+        mobile: `Mobile (${width}px) · Screen FP`,
+        laptop: `Laptop (${width}px) · Adaptive`,
+        desktop: `Desktop PC (${width}px) · Full`
+      };
+      const badge = document.getElementById("device-profile-badge");
+      const overlayBadge = document.getElementById("overlay-device-badge");
+      if (badge) badge.textContent = labelMap[detectedDeviceType];
+      if (overlayBadge) overlayBadge.textContent = `Detected: ${labelMap[detectedDeviceType]}`;
+
+      syncSensorCopy();
+    }
+
+    function syncSensorCopy() {
+      const heading = document.getElementById("sensor-heading");
+      const desc = document.getElementById("sensor-description");
+      const sourceEl = document.getElementById("bio-source-status");
+      const thumbLabel = document.getElementById("thumb-label");
+
+      if (kioskMode === "user") {
+        heading.textContent = "Connected Fingerprint Scanner (L1)";
+        desc.textContent = "Verifying connected biometric fingerprint hardware and maintaining active thumb lock through slip printing.";
+        if (sourceEl) sourceEl.textContent = hardwareReady ? "L1 Scanner Ready" : "L1 Scanner (Check)";
+        if (!isThumbHeld && thumbLabel) thumbLabel.textContent = "Hold Connected Scanner";
+      } else {
+        heading.textContent = "Screen-Unlock Fingerprint Lock";
+        desc.textContent = detectedDeviceType === "mobile"
+          ? "Press and hold the on-screen unlock fingerprint pad with your thumb until your slip is printed."
+          : "Press and hold the screen-unlock fingerprint sensor (or enable Demo Hold) until your slip is printed.";
+        if (sourceEl) sourceEl.textContent = "Screen-Unlock FP";
+        if (!isThumbHeld && thumbLabel) thumbLabel.textContent = "Hold Screen Fingerprint";
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      detectAndApplyDeviceProfile();
+      checkRDServiceHardware(true);
+    });
+    window.addEventListener("resize", detectAndApplyDeviceProfile);
+
+    // ==========================================
+    // HANDS-FREE SPEECH ENGINE
     // ==========================================
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     let activeRec = null;
@@ -563,7 +669,7 @@
           if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
             shouldListen = false;
             updateMicUI("OFF");
-            showBanner("Microphone permission blocked. Allow Microphone in Chrome site settings.");
+            showBanner("Microphone permission blocked. Allow Microphone in browser site settings.");
             return;
           }
           speak("I couldn't hear you clearly. Please speak again.", true);
@@ -760,13 +866,11 @@
       const tokens = normalized.split(/[^a-z0-9.]+/).filter(Boolean);
       const hasScale = tokens.some((t) => ["hundred", "thousand", "tausand", "savi", "saavira", "hajar", "lakh", "lac", "lakhs", "k"].includes(t));
 
-      // Pure digit string like "5000" or "2500"
       if (tokens.length === 1 && /^\d+(?:\.\d+)?$/.test(tokens[0])) {
         const val = parseFloat(tokens[0]);
         return val > 0 ? Math.round(val) : null;
       }
 
-      // Individual spoken digits like "five zero zero zero"
       if (!hasScale && tokens.length >= 2 && tokens.every((t) => /^\d$/.test(t) || (t in ones && ones[t] <= 9))) {
         const joined = tokens.map((t) => (/^\d$/.test(t) ? t : String(ones[t]))).join("");
         const parsed = parseInt(joined, 10);
@@ -937,13 +1041,14 @@
     }
 
     // ==========================================
-    // ACTIVATION, BIOMETRICS & PRINTING
+    // SCREEN FP & CONNECTED SCANNER BIOMETRICS
     // ==========================================
     function activateKiosk() {
       document.getElementById("activation-overlay").style.display = "none";
+      detectAndApplyDeviceProfile();
       renderAccountList();
       warmUpBackend();
-      speak("Welcome to Voice-Assisted Biometric Banking Slip. Place and hold your thumb on the scanner to begin.", false);
+      speak("Welcome to Voice-Assisted Biometric Banking Slip. Hold the fingerprint sensor to begin.", false);
     }
 
     async function setKioskMode(mode) {
@@ -954,16 +1059,18 @@
         pBtn.className = "btn btn-accent";
         uBtn.className = "btn";
         hideBanner();
-        speak("Prototype Mode active.", false);
+        syncSensorCopy();
+        speak("Prototype Mode active with screen-unlock fingerprint.", false);
       } else {
         uBtn.className = "btn btn-accent";
         pBtn.className = "btn";
-        await checkRDServiceHardware();
+        syncSensorCopy();
+        await checkRDServiceHardware(false);
       }
     }
 
-    async function checkRDServiceHardware() {
-      showBanner("Checking UIDAI L1 scanner on https://127.0.0.1:11100...");
+    async function checkRDServiceHardware(silent) {
+      if (!silent) showBanner("Checking connected fingerprint scanner on https://127.0.0.1:11100...");
       try {
         const controller = new AbortController();
         setTimeout(() => controller.abort(), 2000);
@@ -972,19 +1079,36 @@
         if (xml.includes("READY")) {
           hardwareReady = true;
           hideBanner();
+          syncSensorCopy();
+          if (!silent) speak("Connected fingerprint scanner ready. Hold your thumb to begin.", false);
         } else {
           throw new Error("NOTREADY");
         }
       } catch (e) {
         hardwareReady = false;
-        showBanner("Device Not Connected: UIDAI L1 scanner not found on port 11100. Use Prototype Mode.");
+        syncSensorCopy();
+        if (!silent) {
+          showBanner("Connected Fingerprint Scanner not detected on port 11100. Switch to Prototype (Screen FP) or connect scanner.");
+          speak("Connected scanner not detected. Using screen fingerprint is available in Prototype Mode.", false);
+        }
       }
     }
 
-    function startThumbHold(e) {
+    function handleThumbPointerDown(e) {
       if (e) e.preventDefault();
+      if (isSimHold) return;
+      startThumbHold();
+    }
+
+    function handleThumbPointerUp(e) {
+      if (e) e.preventDefault();
+      if (isSimHold) return;
+      releaseThumbHold();
+    }
+
+    function startThumbHold() {
       if (kioskMode === "user" && !hardwareReady) {
-        showBanner("L1 Biometric Hardware not connected.");
+        showBanner("Connected Fingerprint Scanner not ready. Connect scanner or use Prototype (Screen FP).");
         return;
       }
       if (isThumbHeld) return;
@@ -995,19 +1119,33 @@
       updateBiometricUI(true);
 
       clearInterval(biometricHeartbeatTimer);
-      biometricHeartbeatTimer = setInterval(() => {
+      biometricHeartbeatTimer = setInterval(async () => {
         if (!isThumbHeld) {
           clearInterval(biometricHeartbeatTimer);
           return;
         }
         biometricPulseCount++;
-        document.getElementById("bio-heartbeat-status").textContent = `Pulse #${biometricPulseCount} (Active)`;
+        const modeTag = kioskMode === "user" ? "Scanner" : "Screen-FP";
+        document.getElementById("bio-heartbeat-status").textContent = `${modeTag} Pulse #${biometricPulseCount} (Verified)`;
         document.getElementById("bio-heartbeat-status").style.color = "#34d399";
+
+        if (kioskMode === "user") {
+          try {
+            const res = await fetch("https://127.0.0.1:11100", { method: "RDSERVICE" });
+            const text = await res.text();
+            if (!text.includes("READY")) abortSession("Connected fingerprint scanner disconnected mid-session.");
+          } catch (err) {
+            abortSession("Connected fingerprint scanner connection lost.");
+          }
+        }
       }, 1500);
 
       if (state === "IDLE") {
         setKioskState("ASK_NAME");
-        speak("Thumb locked. Please say your registered full name.", true);
+        const startMsg = kioskMode === "user"
+          ? "Connected fingerprint verified. Please say your registered full name."
+          : "Screen fingerprint locked. Please say your registered full name.";
+        speak(startMsg, true);
       }
     }
 
@@ -1017,7 +1155,7 @@
       clearInterval(biometricHeartbeatTimer);
       updateBiometricUI(false);
       if (state !== "IDLE" && state !== "DONE") {
-        abortSession("Thumb contact lost! Transaction aborted for security.");
+        abortSession("Fingerprint contact released! Transaction aborted for security.");
       }
     }
 
@@ -1030,7 +1168,7 @@
         clearInterval(biometricHeartbeatTimer);
         updateBiometricUI(false);
         if (state !== "IDLE" && state !== "DONE") {
-          abortSession("Thumb contact lost! Transaction aborted for security.");
+          abortSession("Screen fingerprint hold released! Transaction aborted for security.");
         }
       }
     }
@@ -1043,14 +1181,14 @@
         pad.classList.add("locked");
         badge.textContent = "LOCKED & ACTIVE";
         badge.style.color = "#34d399";
-        label.textContent = "Thumb Locked";
-        document.getElementById("bio-heartbeat-status").textContent = "Pulse #1 (Active)";
+        label.textContent = kioskMode === "user" ? "Scanner Locked" : "Screen FP Locked";
+        document.getElementById("bio-heartbeat-status").textContent = "Pulse #1 (Verified)";
         document.getElementById("bio-heartbeat-status").style.color = "#34d399";
       } else {
         pad.classList.remove("locked");
         badge.textContent = "WAITING";
         badge.style.color = "#94a3b8";
-        label.textContent = "Press & Hold Thumb";
+        label.textContent = kioskMode === "user" ? "Hold Connected Scanner" : "Hold Screen Fingerprint";
         document.getElementById("bio-heartbeat-status").textContent = "Idle";
         document.getElementById("bio-heartbeat-status").style.color = "#64748b";
       }
@@ -1070,29 +1208,44 @@
       document.getElementById("bio-auth-status").style.color = "#f87171";
       showBanner(reason);
       setKioskState("IDLE");
-      speak(`${reason} Hold your thumb to start again.`, false);
+      speak(`${reason} Hold the fingerprint sensor to start again.`, false);
     }
 
     async function runMidSessionBiometricScan() {
       if (!isThumbHeld) {
-        abortSession("Thumb removed during biometric authentication!");
+        abortSession("Fingerprint removed during biometric authentication!");
         return;
       }
       stopListening();
       setKioskState("BIO_SCANNING");
-      document.getElementById("bio-auth-status").textContent = "Scanning...";
+      document.getElementById("bio-auth-status").textContent = kioskMode === "user" ? "Scanning Hardware..." : "Verifying Screen FP...";
       document.getElementById("bio-auth-status").style.color = "#fbbf24";
-      speak("Authenticating thumbprint and preparing your slip.", false);
+      speak("Authenticating fingerprint and preparing your slip.", false);
+
+      if (kioskMode === "user") {
+        try {
+          const pidOpts = `<PidOptions ver="1.0"><Opts env="P" fCount="1" fType="2" format="0" iCount="0" pCount="0" pidVer="2.0" timeout="10000"/></PidOptions>`;
+          const res = await fetch("https://127.0.0.1:11100/rd/capture", { method: "CAPTURE", body: pidOpts });
+          const xml = await res.text();
+          if (!xml.includes('errCode="0"')) {
+            abortSession("Connected fingerprint scanner verification failed.");
+            return;
+          }
+        } catch (err) {
+          abortSession("Connected fingerprint scanner capture failed.");
+          return;
+        }
+      }
 
       setTimeout(async () => {
         if (!isThumbHeld) {
-          abortSession("Thumb lifted during biometric verification!");
+          abortSession("Fingerprint lifted during biometric verification!");
           return;
         }
         document.getElementById("bio-auth-status").textContent = "AUTHENTICATED ✔";
         document.getElementById("bio-auth-status").style.color = "#34d399";
         await generateFinalSlip();
-      }, 1200);
+      }, 1100);
     }
 
     function triggerSlipPrint() {
@@ -1107,7 +1260,8 @@
 
       const refId = "BIO-" + Math.random().toString(36).substring(2, 10).toUpperCase();
       const timestamp = new Date().toLocaleString("en-IN");
-      const hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount || 1}:${refId}:${timestamp}`);
+      const authSource = kioskMode === "user" ? "L1-SCANNER" : "SCREEN-FP";
+      const hash = await sha256Hex(`${txData.matchedUser.account}:${txData.txType}:${txData.amount}:${biometricPulseCount || 1}:${authSource}:${refId}:${timestamp}`);
 
       document.getElementById("slip-tx-type").textContent = `${txData.txType} SLIP`;
       document.getElementById("slip-timestamp").textContent = timestamp;
@@ -1115,7 +1269,7 @@
       document.getElementById("slip-account").textContent = txData.matchedUser.account;
       document.getElementById("slip-amount").textContent = `₹ ${txData.amount.toLocaleString("en-IN")}.00`;
       document.getElementById("slip-ref").textContent = refId;
-      document.getElementById("slip-hash").textContent = `eSign Hash: ${hash}`;
+      document.getElementById("slip-hash").textContent = `eSign Hash (${authSource}): ${hash}`;
       document.getElementById("printable-slip").style.display = "block";
       document.getElementById("heard-transcript").textContent = `Slip generated for ₹${txData.amount.toLocaleString("en-IN")} (${refId}).`;
       speak("Authentication complete. Your slip is ready and opening for print. You may release your thumb now.", false);
@@ -1141,7 +1295,7 @@
       document.getElementById("printable-slip").style.display = "none";
       document.getElementById("step-workspace").style.display = "block";
       setKioskState("IDLE");
-      speak("Ready for next user. Place and hold your thumb to begin.", false);
+      speak("Ready for next user. Hold the fingerprint sensor to begin.", false);
     }
 
     function setKioskState(newState) {
