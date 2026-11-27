@@ -68,6 +68,94 @@
       70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
       100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
+    @keyframes signalGlowGreen {
+      0%, 100% { box-shadow: 0 0 18px rgba(16, 185, 129, 0.85), 0 0 36px rgba(16, 185, 129, 0.45); }
+      50% { box-shadow: 0 0 28px rgba(52, 211, 153, 1), 0 0 52px rgba(16, 185, 129, 0.7); }
+    }
+    @keyframes signalGlowRed {
+      0%, 100% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.85), 0 0 36px rgba(239, 68, 68, 0.45); }
+      50% { box-shadow: 0 0 28px rgba(248, 113, 113, 1), 0 0 52px rgba(239, 68, 68, 0.7); }
+    }
+
+    /* Top High-Visibility Green & Red Turn Signal Bar */
+    .signal-bar-wrap {
+      background: #070b16;
+      border-bottom: 1px solid #1e293b;
+      padding: 12px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 35;
+    }
+    .signal-bar-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .signal-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: #0d1426;
+      border: 2px solid #1e293b;
+      opacity: 0.35;
+      transition: all 0.2s ease;
+    }
+    .signal-bulb {
+      width: 28px;
+      height: 28px;
+      border-radius: 9999px;
+      flex-shrink: 0;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+    .signal-bulb.red { background: #7f1d1d; }
+    .signal-bulb.green { background: #064e3b; }
+
+    .signal-card.active-red {
+      opacity: 1;
+      background: rgba(127, 29, 29, 0.35);
+      border-color: #ef4444;
+    }
+    .signal-card.active-red .signal-bulb.red {
+      background: #ef4444;
+      animation: signalGlowRed 1.2s infinite;
+    }
+
+    .signal-card.active-green {
+      opacity: 1;
+      background: rgba(6, 78, 59, 0.35);
+      border-color: #10b981;
+    }
+    .signal-card.active-green .signal-bulb.green {
+      background: #10b981;
+      animation: signalGlowGreen 1.2s infinite;
+    }
+
+    .signal-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+    .signal-sub {
+      font-size: 11px;
+      color: #cbd5e1;
+      margin-top: 2px;
+    }
+    @media (max-width: 600px) {
+      .signal-bar-wrap { padding: 10px 12px; }
+      .signal-bar-inner { gap: 8px; }
+      .signal-card { padding: 10px; gap: 8px; border-radius: 12px; }
+      .signal-bulb { width: 22px; height: 22px; }
+      .signal-title { font-size: 12px; }
+      .signal-sub { font-size: 10px; }
+    }
+
     .mic-live {
       background: #10b981 !important;
       animation: pulseRing 1.4s infinite;
@@ -219,6 +307,26 @@
     </div>
   </div>
 
+  <!-- High-Visibility Red (Listen) & Green (Speak) Turn Lights -->
+  <div class="signal-bar-wrap no-print" role="status" aria-live="polite">
+    <div class="signal-bar-inner">
+      <div id="signal-red-card" class="signal-card">
+        <span class="signal-bulb red"></span>
+        <div>
+          <div class="signal-title" style="color:#fca5a5;">Red Light — Listen</div>
+          <div class="signal-sub">Kiosk is speaking (Wait)</div>
+        </div>
+      </div>
+      <div id="signal-green-card" class="signal-card">
+        <span class="signal-bulb green"></span>
+        <div>
+          <div class="signal-title" style="color:#6ee7b7;">Green Light — Speak</div>
+          <div class="signal-sub">Mic is ON (Your turn)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Header -->
   <header class="no-print" style="background:#0b1120;border-bottom:1px solid #1e293b;padding:12px 20px;">
     <div style="max-width:1160px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
@@ -329,7 +437,7 @@
         <div id="step-workspace" class="no-print">
           <div id="ui-step-1" class="subpanel" style="text-align:center;padding:24px;">
             <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Hold the screen-unlock fingerprint sensor to start</div>
-            <div style="font-size:12px;color:#94a3b8;">Works on Mobile, Laptop, and PC with automatic voice guidance.</div>
+            <div style="font-size:12px;color:#94a3b8;">Watch the top lights: Red = Listen, Green = Speak.</div>
           </div>
 
           <div id="ui-step-2" style="display:none;">
@@ -528,7 +636,7 @@
     window.addEventListener("resize", detectAndApplyDeviceProfile);
 
     // ==========================================
-    // HANDS-FREE SPEECH ENGINE
+    // HANDS-FREE SPEECH ENGINE + RED/GREEN LIGHTS
     // ==========================================
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     let activeRec = null;
@@ -547,6 +655,14 @@
     function updateMicUI(mode) {
       const dot = document.getElementById("mic-dot");
       const txt = document.getElementById("mic-status-text");
+      const redCard = document.getElementById("signal-red-card");
+      const greenCard = document.getElementById("signal-green-card");
+
+      if (redCard && greenCard) {
+        redCard.classList.toggle("active-red", mode === "SPEAKING");
+        greenCard.classList.toggle("active-green", mode === "LISTENING");
+      }
+
       if (!dot || !txt) return;
       if (mode === "LISTENING") {
         dot.className = "mic-live";
@@ -555,9 +671,9 @@
         txt.style.color = "#34d399";
       } else if (mode === "SPEAKING") {
         dot.className = "";
-        dot.style.background = "#f59e0b";
+        dot.style.background = "#ef4444";
         txt.textContent = "Mic OFF (Kiosk speaking)";
-        txt.style.color = "#fbbf24";
+        txt.style.color = "#fca5a5";
       } else {
         dot.className = "";
         dot.style.background = "#475569";
@@ -584,7 +700,7 @@
     }
 
     function isEchoFromCurrentPrompt(text) {
-      if (Date.now() - lastSpokenAt > 750) return false;
+      if (Date.now() - lastSpokeAt > 750) return false;
       const cand = (text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
       const prompt = (currentPromptText || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
       if (!cand || !prompt) return false;
